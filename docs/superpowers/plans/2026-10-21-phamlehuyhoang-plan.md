@@ -4,7 +4,7 @@ Ngày cập nhật: 21/10/2026.
 
 ## 1. Mục tiêu và phạm vi đã chốt
 
-Xây dựng ứng dụng di động điểm danh sinh viên theo hình thức **bài tập cá nhân** của Phạm Lê Huy Hoàng. Đây là kế hoạch phạm vi và lộ trình; công nghệ, cấu trúc mã nguồn và kế hoạch triển khai chi tiết sẽ được chọn sau.
+Xây dựng ứng dụng di động điểm danh sinh viên theo hình thức **bài tập cá nhân** của Phạm Lê Huy Hoàng. Công nghệ đã chốt: Flutter cho mobile, PostgreSQL cho dữ liệu; ASP.NET Core WebAPI được chọn để triển khai với Conveyor trong môi trường Visual Studio. Conveyor cung cấp đường truy cập tới API, không thay thế mã nguồn WebAPI.
 
 - Tên project ứng dụng: `phamlehuyhoang`.
 - Tên project WebAPI: `phamlehuyhoang`.
@@ -142,8 +142,9 @@ Quy tắc dữ liệu: không thêm trùng sinh viên vào lớp; không tạo h
 - [x] Chốt tên `phamlehuyhoang` và tạo một repository GitHub.
 - [x] Chốt ba chức năng mở rộng và tính năng mới đề xuất.
 - [x] Ghi lại phạm vi bài cá nhân vào kế hoạch.
-- [ ] Chốt nền tảng mobile, công nghệ WebAPI, cơ sở dữ liệu và môi trường chạy.
-- [ ] Xác nhận các điểm liên quan cách chấm ở mục 7.
+- [x] Chốt Flutter + ASP.NET Core WebAPI + PostgreSQL; dùng Conveyor để điện thoại truy cập API.
+- [ ] Kiểm tra phiên bản SDK, PostgreSQL, Conveyor và môi trường chạy thực tế.
+- [ ] Ghi nhận giả định cho các điểm chưa có xác nhận ở mục 7, triển khai theo mặc định tại mục 9 mà không dừng hỏi người dùng.
 - [ ] Thử khả thi đối chiếu khuôn mặt và camera trên thiết bị mục tiêu trước khi xây dựng toàn bộ.
 - [ ] Thiết kế màn hình, dữ liệu, hợp đồng API và kế hoạch triển khai chi tiết.
 - [ ] Hoàn thành đăng ký, đăng nhập mật khẩu + OTP và phân quyền.
@@ -164,7 +165,7 @@ Quy tắc dữ liệu: không thêm trùng sinh viên vào lớp; không tạo h
 - [ ] Dự báo đúng với ví dụ 15/8/2/3; xử lý chưa có dữ liệu, hết buổi và vượt giới hạn.
 - [ ] Hướng dẫn cài đặt, cấu hình mẫu và dữ liệu mẫu đủ để chạy lại trên môi trường khác.
 
-## 7. Những điểm cần xác nhận trước triển khai chi tiết
+## 7. Các điểm liên quan cách chấm cần ghi nhận
 
 - Ba chức năng a, b, e có phù hợp danh sách đã thuyết trình của cá nhân không.
 - Cách kết hợp khuôn mặt với OTP và tiêu chí thầy chấp nhận cho đăng nhập bằng khuôn mặt.
@@ -173,7 +174,7 @@ Quy tắc dữ liệu: không thêm trùng sinh viên vào lớp; không tạo h
 - Cách tính điểm vì các số ghi trong đề hiện cộng thành 11.
 - Yêu cầu repo public/private khi nộp bài; hiện repo là Private.
 
-Trạng thái ở lần cập nhật kế hoạch: chưa triển khai mã nguồn.
+Trạng thái ở lần cập nhật kế hoạch: chưa triển khai mã nguồn. Theo chỉ đạo mới tại mục 9, các điểm chưa có xác nhận không chặn việc code; dùng giả định được ghi lại.
 
 ## 8. Chiến lược hoàn thiện nhanh trước hạn nộp
 
@@ -221,7 +222,7 @@ Các lựa chọn sau đã được đối chiếu tài liệu vào ngày 21/10/
 
 - Mobile: **Flutter, ưu tiên Android và một thiết bị mục tiêu** để sớm có APK chạy được.
 - Máy hiện có lệnh Flutter/Dart, .NET, Python và Node; việc thấy executable chưa chứng minh SDK hoặc mọi dependency hoạt động.
-- WebAPI và database: chọn phương án đơn giản, build được trên môi trường hiện có và phù hợp giải pháp khuôn mặt; tránh thêm nhiều dịch vụ chỉ để nối các công nghệ.
+- WebAPI: ASP.NET Core; database bắt buộc PostgreSQL qua EF Core/Npgsql. Conveyor cung cấp URL truy cập API cho điện thoại. Không tự đổi sang SQLite, SQL Server, Firebase hoặc Supabase.
 - Ưu tiên một API và một cơ sở dữ liệu có dữ liệu mẫu; cơ chế phân quyền và kiểm tra điểm danh đặt ở API.
 - Email OTP: xác nhận sớm dịch vụ gửi email/SMTP và cấu hình bằng biến môi trường. Luồng gửi thật phải được thử trước khi đánh dấu hoàn thành.
 - OTP in console hoặc hiển thị trên màn hình chỉ có thể là chế độ phát triển được ghi rõ, không tính là đã hoàn thành gửi OTP qua email.
@@ -240,3 +241,36 @@ Các lựa chọn sau đã được đối chiếu tài liệu vào ngày 21/10/
 - [ ] Đối chiếu yêu cầu cách nộp và quyền truy cập repo để thầy xem được bài.
 
 Kế hoạch không phân bổ khung giờ cho từng mục tiêu. Checklist chức năng chỉ được tích khi đã thực hiện và kiểm tra đạt.
+
+## 9. Chỉ đạo triển khai tự chủ cho Antigravity
+
+- Người dùng yêu cầu Antigravity đọc plan và triển khai xuyên suốt, không hỏi thêm, không dừng ở giai đoạn tư vấn hoặc chờ duyệt thiết kế.
+- Thực hiện trực tiếp trong phiên Antigravity; tự chọn các chi tiết còn thiếu và ghi vào `docs/DECISIONS.md`.
+- Không chia giờ hoặc tạo bảng phân bổ thời gian cho từng mục tiêu.
+- Đọc và thực thi [prompt master](../../prompts/ANTIGRAVITY_MASTER_PROMPT.md), sau đó code, chạy thử, sửa lỗi, build và bàn giao.
+
+### Stack và cấu trúc bắt buộc
+
+- Flutter Android: `mobile/phamlehuyhoang/`, trường `name: phamlehuyhoang` trong pubspec.
+- ASP.NET Core WebAPI: `api/phamlehuyhoang/phamlehuyhoang.csproj`; chọn .NET ổn định đang có, khớp major EF Core và Npgsql.
+- PostgreSQL: database `phamlehuyhoang`, EF Core migrations, script dựng dữ liệu và seed có thể chạy lại.
+- Conveyor: đường truy cập API từ thiết bị; URL cấu hình được qua `API_BASE_URL`, không hardcode URL tunnel.
+- Ưu tiên một WebAPI chính; nếu cần tiến trình phụ đối chiếu khuôn mặt, chỉ cho API gọi nội bộ, không mở nó trực tiếp ra Internet.
+
+### Mặc định nghiệp vụ để không phải hỏi lại
+
+- Đăng ký công khai chỉ tạo vai trò sinh viên; admin quản lý giảng viên và phân công lớp.
+- Đăng nhập mật khẩu hoặc đối chiếu khuôn mặt đều phải hoàn tất OTP trước khi nhận phiên đăng nhập đầy đủ.
+- OTP mặc định 6 chữ số, hạn 5 phút, tối đa 5 lần thử, chờ 60 giây để gửi lại; cấu hình được và kiểm tra ở API.
+- Giảng viên đặt địa điểm lớp, bán kính mặc định 100 m; mẫu vị trí không quá 60 giây và độ chính xác không quá 50 m; cấu hình được.
+- QR có hạn mặc định 60 giây, cho phép làm mới khi phiên còn mở; đóng phiên vô hiệu mã ngay.
+- Khi chốt buổi, sinh viên chưa điểm danh được ghi vắng; có mặt/đi muộn tính tham dự, vắng có phép không tính vào số vắng bị tính theo chính sách mặc định.
+- Lớp cấu hình số buổi `N` và số buổi tối đa được vắng `L`; dữ liệu mẫu dùng `N=15, L=3`. Dự báo dùng công thức mục 4.
+- Thời gian lưu UTC; hiển thị giờ Việt Nam. Tên project/API/database giữ nguyên `phamlehuyhoang`.
+
+### Giới hạn tự chủ và bàn giao trung thực
+
+- Tự xử lý lỗi và tiếp tục các phần không bị chặn; không gửi câu hỏi hoặc yêu cầu xác nhận cho các lựa chọn đã được giao.
+- Không xóa dữ liệu có sẵn, không force-push và không đưa bí mật hay dữ liệu sinh trắc học thật vào Git.
+- Nếu thiếu thông tin đăng nhập SMTP/PostgreSQL, quyền cài đặt hoặc quyền thao tác Conveyor, dùng cấu hình sẵn có hợp lệ trong dự án/môi trường; không bịa thông tin hoặc vượt quyền.
+- Nếu vẫn bị chặn, hoàn thành các phần còn lại, ghi rõ hạng mục chưa kiểm thử và lệnh/bước cấu hình còn thiếu khi bàn giao; không đánh dấu hoàn thành giả.
