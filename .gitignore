@@ -1,0 +1,33 @@
+# Local runtime data and secrets
+.local/
+*.env
+*.log
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+mobile/phamlehuyhoang/build/
+mobile/phamlehuyhoang/.dart_tool/
+mobile/phamlehuyhoang/.flutter-plugins
+mobile/phamlehuyhoang/.flutter-plugins-dependencies
+
+# Android
+.gradle/
+local.properties
+*.apk
+*.aab
+
+# OS
+.DS_Store
+Thumbs.db

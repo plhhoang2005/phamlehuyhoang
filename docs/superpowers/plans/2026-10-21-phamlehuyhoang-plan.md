@@ -274,3 +274,4 @@ Kế hoạch không phân bổ khung giờ cho từng mục tiêu. Checklist ch�
 - Không xóa dữ liệu có sẵn, không force-push và không đưa bí mật hay dữ liệu sinh trắc học thật vào Git.
 - Nếu thiếu thông tin đăng nhập SMTP/PostgreSQL, quyền cài đặt hoặc quyền thao tác Conveyor, dùng cấu hình sẵn có hợp lệ trong dự án/môi trường; không bịa thông tin hoặc vượt quyền.
 - Nếu vẫn bị chặn, hoàn thành các phần còn lại, ghi rõ hạng mục chưa kiểm thử và lệnh/bước cấu hình còn thiếu khi bàn giao; không đánh dấu hoàn thành giả.
+
