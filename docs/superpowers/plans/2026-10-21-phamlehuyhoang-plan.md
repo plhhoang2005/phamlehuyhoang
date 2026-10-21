@@ -180,7 +180,6 @@ Trạng thái ở lần cập nhật kế hoạch: chưa triển khai mã nguồ
 ### Hạn nộp và nguyên tắc ưu tiên
 
 - Hạn nộp: **20:00 ngày 21/10/2026, giờ Việt Nam (UTC+7)**.
-- Thời điểm lập bổ sung: khoảng 10:30 cùng ngày; các mốc bên dưới là mục tiêu triển khai, không phải cam kết đã hoàn thành.
 - Người dùng yêu cầu ưu tiên hoàn thiện nhanh và cho phép tận dụng repository Flutter có sẵn hoặc thư viện hỗ trợ.
 - Ưu tiên sử dụng thư viện, mô hình được huấn luyện sẵn và ví dụ chính thức; phần nghiệp vụ điểm danh, dữ liệu, API, phân quyền và giao diện tích hợp được triển khai cho bài cá nhân này.
 - Giữ đủ các yêu cầu đã chọn: đăng ký email, đăng nhập mật khẩu + OTP, phân quyền, CRUD, QR, vị trí, đăng nhập khuôn mặt và dự báo chuyên cần.
@@ -191,7 +190,7 @@ Trạng thái ở lần cập nhật kế hoạch: chưa triển khai mã nguồ
 
 - [ ] Chỉ khảo sát starter/template hoặc ví dụ trực tiếp phục vụ chức năng cần làm; giới hạn bước chọn nền tảng để tránh mất thời gian đọc và sửa một app lớn.
 - [ ] Có thể dùng starter Flutter chung khi giấy phép cho phép và build được trên SDK hiện có; không lấy nguyên một app điểm danh rồi chỉ đổi tên, màu và logo.
-- [ ] Nếu một repo không build được hoặc kéo theo backend/dịch vụ khó cấu hình trong khoảng 30 phút thử ban đầu, chuyển sang project Flutter tối giản và thư viện đã chọn.
+- [ ] Nếu một repo không build được hoặc kéo theo backend/dịch vụ khó cấu hình ở bước thử ban đầu, chuyển sang project Flutter tối giản và thư viện đã chọn.
 - [ ] Ghi nguồn, phiên bản/commit và giấy phép của phần tái sử dụng trong `THIRD_PARTY_NOTICES.md`; giữ thông báo bản quyền theo giấy phép.
 - [ ] Không đưa khóa API, mật khẩu email, dữ liệu khuôn mặt thật hoặc cơ sở dữ liệu chứa thông tin cá nhân lên repo.
 - [ ] Giữ tên project mobile, WebAPI và cơ sở dữ liệu là `phamlehuyhoang`; các thư mục con có thể phân biệt bằng `mobile/` và `api/`.
@@ -229,22 +228,6 @@ Các lựa chọn sau đã được đối chiếu tài liệu vào ngày 21/10/
 - Thử kết nối điện thoại tới API sớm; kiểm tra địa chỉ LAN/cấu hình mạng, camera, vị trí và vòng đời ứng dụng.
 - Không coi việc chạy trên trình duyệt hoặc build APK thành công là đã kiểm thử QR/GPS/khuôn mặt trên điện thoại.
 
-### Các mốc mục tiêu trong ngày 21/10/2026
-
-| Mốc giờ Việt Nam | Kết quả mục tiêu |
-| --- | --- |
-| 10:30–11:15 | Chốt stack/starter/thư viện; build khung app, thử thiết bị/API, thử đối chiếu khuôn mặt và đường gửi email |
-| 11:15–14:00 | Hoàn thành luồng tài khoản + OTP, ba vai trò, dữ liệu mẫu và CRUD chính |
-| 14:00–16:00 | Hoàn thành mở phiên QR, quét QR + vị trí, kiểm tra tại API và lịch sử điểm danh |
-| 16:00–17:15 | Tích hợp đăng ký/đăng nhập khuôn mặt từ phương án đã thử, xử lý lỗi và OTP |
-| 17:15–18:00 | Hoàn thành dự báo chuyên cần và thống nhất giao diện các vai trò |
-| 18:00–19:00 | Kiểm tra xuyên suốt trên thiết bị mục tiêu, sửa lỗi; build APK bản nộp |
-| 19:00–19:30 | Đóng gói source/API/database/script, README, tài khoản mẫu, báo cáo nguồn thư viện và bằng chứng chạy |
-| 19:30–19:45 | Chạy lại kịch bản trình diễn và kiểm tra bài nộp từ repo |
-| 19:45–20:00 | Thời gian dự phòng cho lỗi đóng gói, mạng và thao tác nộp bài |
-
-Nếu bắt đầu muộn hơn hoặc mốc thử đầu tiên không đạt, cập nhật lại lịch theo thời gian còn lại và báo trở ngại. Ưu tiên sửa luồng cốt lõi; không đánh dấu đạt chức năng chưa chạy thật.
-
 ### Bộ bàn giao trước hạn
 
 - [ ] Source Flutter, WebAPI và tài liệu trong repository `phamlehuyhoang`.
@@ -256,4 +239,4 @@ Nếu bắt đầu muộn hơn hoặc mốc thử đầu tiên không đạt, c�
 - [ ] Kịch bản trình diễn đủ yêu cầu, ảnh/video nếu môn học yêu cầu và danh sách giới hạn thực tế.
 - [ ] Đối chiếu yêu cầu cách nộp và quyền truy cập repo để thầy xem được bài.
 
-Mục này bổ sung chiến lược tăng tốc và thời hạn; checklist chức năng chỉ được tích khi đã thực hiện và kiểm tra đạt.
+Kế hoạch không phân bổ khung giờ cho từng mục tiêu. Checklist chức năng chỉ được tích khi đã thực hiện và kiểm tra đạt.
