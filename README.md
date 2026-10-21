@@ -74,7 +74,6 @@ powershell -ExecutionPolicy Bypass -File scripts\Initialize-Local.ps1
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\Start-Backend.ps1
 ```
-Swagger UI sẵn sàng tại: `http://127.0.0.1:5000/swagger`.
 
 ### Bước 3: Khởi chạy Ứng dụng Di động
 ```powershell
