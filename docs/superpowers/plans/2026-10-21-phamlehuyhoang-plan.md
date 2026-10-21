@@ -173,4 +173,87 @@ Quy tắc dữ liệu: không thêm trùng sinh viên vào lớp; không tạo h
 - Cách tính điểm vì các số ghi trong đề hiện cộng thành 11.
 - Yêu cầu repo public/private khi nộp bài; hiện repo là Private.
 
-Chưa triển khai mã nguồn trong bước cập nhật kế hoạch này.
+Trạng thái ở lần cập nhật kế hoạch: chưa triển khai mã nguồn.
+
+## 8. Chiến lược hoàn thiện nhanh trước hạn nộp
+
+### Hạn nộp và nguyên tắc ưu tiên
+
+- Hạn nộp: **20:00 ngày 21/10/2026, giờ Việt Nam (UTC+7)**.
+- Thời điểm lập bổ sung: khoảng 10:30 cùng ngày; các mốc bên dưới là mục tiêu triển khai, không phải cam kết đã hoàn thành.
+- Người dùng yêu cầu ưu tiên hoàn thiện nhanh và cho phép tận dụng repository Flutter có sẵn hoặc thư viện hỗ trợ.
+- Ưu tiên sử dụng thư viện, mô hình được huấn luyện sẵn và ví dụ chính thức; phần nghiệp vụ điểm danh, dữ liệu, API, phân quyền và giao diện tích hợp được triển khai cho bài cá nhân này.
+- Giữ đủ các yêu cầu đã chọn: đăng ký email, đăng nhập mật khẩu + OTP, phân quyền, CRUD, QR, vị trí, đăng nhập khuôn mặt và dự báo chuyên cần.
+- Hạn chế thời gian cho hoạt ảnh, bộ nhận diện thương hiệu, bản đồ tương tác và các tiện ích ngoài đề. Vị trí có thể hiển thị tọa độ/khoảng cách mà không cần tích hợp bản đồ.
+- Không thêm chat, gọi video, thanh toán hoặc các chức năng ngoài phạm vi đã chốt.
+
+### Cách tận dụng mã nguồn có sẵn
+
+- [ ] Chỉ khảo sát starter/template hoặc ví dụ trực tiếp phục vụ chức năng cần làm; giới hạn bước chọn nền tảng để tránh mất thời gian đọc và sửa một app lớn.
+- [ ] Có thể dùng starter Flutter chung khi giấy phép cho phép và build được trên SDK hiện có; không lấy nguyên một app điểm danh rồi chỉ đổi tên, màu và logo.
+- [ ] Nếu một repo không build được hoặc kéo theo backend/dịch vụ khó cấu hình trong khoảng 30 phút thử ban đầu, chuyển sang project Flutter tối giản và thư viện đã chọn.
+- [ ] Ghi nguồn, phiên bản/commit và giấy phép của phần tái sử dụng trong `THIRD_PARTY_NOTICES.md`; giữ thông báo bản quyền theo giấy phép.
+- [ ] Không đưa khóa API, mật khẩu email, dữ liệu khuôn mặt thật hoặc cơ sở dữ liệu chứa thông tin cá nhân lên repo.
+- [ ] Giữ tên project mobile, WebAPI và cơ sở dữ liệu là `phamlehuyhoang`; các thư mục con có thể phân biệt bằng `mobile/` và `api/`.
+- [ ] Trình bày rõ phần sử dụng thư viện và phần tự triển khai trong báo cáo.
+
+Điều kiện của đề: source giống nhau có thể bị rớt môn. Giấy phép mã nguồn mở không tự thay thế yêu cầu về tính độc lập của bài tập; việc dùng starter cần tránh làm bài nộp trùng ứng dụng mẫu.
+
+### Thư viện và nguồn kỹ thuật ưu tiên
+
+Các lựa chọn sau đã được đối chiếu tài liệu vào ngày 21/10/2026; chưa được cài hoặc xác nhận tương thích trong project. Chốt phiên bản sau khi build thử và lưu lockfile.
+
+| Chức năng | Nguồn ưu tiên | Phạm vi sử dụng |
+| --- | --- | --- |
+| Quét QR | [mobile_scanner](https://pub.dev/packages/mobile_scanner) | Quét mã bằng camera; API vẫn phải xác thực nội dung, thời hạn và quyền |
+| Hiển thị QR | [qr_flutter](https://pub.dev/packages/qr_flutter) | Hiển thị mã phiên điểm danh do API cấp |
+| Vị trí | [geolocator](https://pub.dev/packages/geolocator) | Xin quyền và lấy vị trí/độ chính xác; API tính và kiểm tra khoảng cách |
+| Chụp khuôn mặt | [camera, publisher flutter.dev](https://pub.dev/packages/camera) | Xem trước camera và chụp ảnh phục vụ đăng ký/đối chiếu |
+| Đối chiếu khuôn mặt | [OpenCV FaceDetectorYN/FaceRecognizerSF với YuNet và SFace](https://docs.opencv.org/4.x/d0/dd4/tutorial_dnn_face.html) | Phương án thử đầu tiên với mô hình có sẵn, không tự huấn luyện từ đầu; chọn cách tích hợp sau khi thử môi trường |
+| Phát hiện mặt, nếu cần | [Google ML Kit Face Detection](https://developers.google.com/ml-kit/vision/face-detection) | Chỉ hỗ trợ phát hiện mặt/đặc trưng; không coi là chức năng nhận diện danh tính |
+
+- [ ] Kiểm tra giấy phép riêng của mã thư viện và trọng số mô hình trước khi đưa vào bài.
+- [ ] Thử đăng ký và đối chiếu cùng người/khác người trước khi hoàn thiện màn hình khuôn mặt.
+- [ ] Không dùng kết quả phát hiện mặt, so khớp ảnh đơn giản hoặc xác thực sinh trắc học của thiết bị để tuyên bố đã nhận diện đúng tài khoản.
+- [ ] Phân biệt rõ đối chiếu danh tính với kiểm tra người thật; không tuyên bố chống ảnh/video giả mạo nếu chưa có kiểm chứng.
+- [ ] Nếu SFace không tích hợp được trong bước thử sớm, báo ngay trở ngại và đánh giá thư viện/mô hình đối chiếu khác; không âm thầm thay chức năng bằng mô phỏng.
+
+### Mục tiêu nền tảng và các điều kiện phải kiểm tra sớm
+
+- Mobile: **Flutter, ưu tiên Android và một thiết bị mục tiêu** để sớm có APK chạy được.
+- Máy hiện có lệnh Flutter/Dart, .NET, Python và Node; việc thấy executable chưa chứng minh SDK hoặc mọi dependency hoạt động.
+- WebAPI và database: chọn phương án đơn giản, build được trên môi trường hiện có và phù hợp giải pháp khuôn mặt; tránh thêm nhiều dịch vụ chỉ để nối các công nghệ.
+- Ưu tiên một API và một cơ sở dữ liệu có dữ liệu mẫu; cơ chế phân quyền và kiểm tra điểm danh đặt ở API.
+- Email OTP: xác nhận sớm dịch vụ gửi email/SMTP và cấu hình bằng biến môi trường. Luồng gửi thật phải được thử trước khi đánh dấu hoàn thành.
+- OTP in console hoặc hiển thị trên màn hình chỉ có thể là chế độ phát triển được ghi rõ, không tính là đã hoàn thành gửi OTP qua email.
+- Thử kết nối điện thoại tới API sớm; kiểm tra địa chỉ LAN/cấu hình mạng, camera, vị trí và vòng đời ứng dụng.
+- Không coi việc chạy trên trình duyệt hoặc build APK thành công là đã kiểm thử QR/GPS/khuôn mặt trên điện thoại.
+
+### Các mốc mục tiêu trong ngày 21/10/2026
+
+| Mốc giờ Việt Nam | Kết quả mục tiêu |
+| --- | --- |
+| 10:30–11:15 | Chốt stack/starter/thư viện; build khung app, thử thiết bị/API, thử đối chiếu khuôn mặt và đường gửi email |
+| 11:15–14:00 | Hoàn thành luồng tài khoản + OTP, ba vai trò, dữ liệu mẫu và CRUD chính |
+| 14:00–16:00 | Hoàn thành mở phiên QR, quét QR + vị trí, kiểm tra tại API và lịch sử điểm danh |
+| 16:00–17:15 | Tích hợp đăng ký/đăng nhập khuôn mặt từ phương án đã thử, xử lý lỗi và OTP |
+| 17:15–18:00 | Hoàn thành dự báo chuyên cần và thống nhất giao diện các vai trò |
+| 18:00–19:00 | Kiểm tra xuyên suốt trên thiết bị mục tiêu, sửa lỗi; build APK bản nộp |
+| 19:00–19:30 | Đóng gói source/API/database/script, README, tài khoản mẫu, báo cáo nguồn thư viện và bằng chứng chạy |
+| 19:30–19:45 | Chạy lại kịch bản trình diễn và kiểm tra bài nộp từ repo |
+| 19:45–20:00 | Thời gian dự phòng cho lỗi đóng gói, mạng và thao tác nộp bài |
+
+Nếu bắt đầu muộn hơn hoặc mốc thử đầu tiên không đạt, cập nhật lại lịch theo thời gian còn lại và báo trở ngại. Ưu tiên sửa luồng cốt lõi; không đánh dấu đạt chức năng chưa chạy thật.
+
+### Bộ bàn giao trước hạn
+
+- [ ] Source Flutter, WebAPI và tài liệu trong repository `phamlehuyhoang`.
+- [ ] APK Android đã cài và chạy thử trên thiết bị mục tiêu.
+- [ ] Script tạo/migrate dữ liệu và dữ liệu mẫu cho cơ sở dữ liệu `phamlehuyhoang`.
+- [ ] Tài khoản thử cho quản trị viên, giảng viên, sinh viên; không chứa thông tin cá nhân thật.
+- [ ] README hướng dẫn chạy API, cấu hình URL từ điện thoại, email, mô hình khuôn mặt và build/cài APK.
+- [ ] File cấu hình mẫu không chứa bí mật và `THIRD_PARTY_NOTICES.md`.
+- [ ] Kịch bản trình diễn đủ yêu cầu, ảnh/video nếu môn học yêu cầu và danh sách giới hạn thực tế.
+- [ ] Đối chiếu yêu cầu cách nộp và quyền truy cập repo để thầy xem được bài.
+
+Mục này bổ sung chiến lược tăng tốc và thời hạn; checklist chức năng chỉ được tích khi đã thực hiện và kiểm tra đạt.
