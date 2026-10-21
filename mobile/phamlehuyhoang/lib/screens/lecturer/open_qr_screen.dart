@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/attendance_models.dart';
 import '../../models/class_models.dart';
 import '../../services/attendance_service.dart';
+import '../../services/location_service.dart';
 import '../../theme/app_theme.dart';
 
 class OpenQrScreen extends StatefulWidget {
@@ -21,11 +22,22 @@ class _OpenQrScreenState extends State<OpenQrScreen> {
   int _remainingSeconds = 60;
   Timer? _countdownTimer;
   bool _isLoading = true;
+  String? _sessionAddress;
 
   @override
   void initState() {
     super.initState();
     _openNewQrSession();
+    _resolveAddress();
+  }
+
+  void _resolveAddress() {
+    LocationService.getAddressFromCoordinates(
+      widget.session.latitude,
+      widget.session.longitude,
+    ).then((addr) {
+      if (mounted) setState(() => _sessionAddress = addr);
+    });
   }
 
   Future<void> _openNewQrSession() async {
@@ -106,7 +118,66 @@ class _OpenQrScreenState extends State<OpenQrScreen> {
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: Colors.black54),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
+
+                    // Location Card with Google Maps button
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.location_on, size: 18, color: AppTheme.danger),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _sessionAddress ?? 'Tọa độ: ${widget.session.latitude}, ${widget.session.longitude}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(4),
+                            onTap: () => LocationService.openGoogleMaps(
+                              widget.session.latitude,
+                              widget.session.longitude,
+                              label: widget.session.roomName,
+                            ),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.map, size: 15, color: AppTheme.primary),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Mở xem vị trí phòng học trên Google Maps',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.primary,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
 
                     // QR Display Box
                     Center(

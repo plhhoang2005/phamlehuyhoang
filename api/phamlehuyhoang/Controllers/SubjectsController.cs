@@ -35,6 +35,7 @@ public class SubjectsController : ControllerBase
     [Authorize(Roles = UserRole.Admin)]
     public async Task<ActionResult<SubjectDto>> CreateSubject([FromBody] CreateSubjectRequest request)
     {
+        if (!ValidSubject(request)) return BadRequest(new { message = "Thông tin môn học không hợp lệ" });
         var cleanCode = request.Code.Trim().ToUpperInvariant();
         if (await _context.Subjects.AnyAsync(s => s.Code == cleanCode))
         {
@@ -55,6 +56,27 @@ public class SubjectsController : ControllerBase
 
         return Ok(new SubjectDto(subject.Id, subject.Code, subject.Name, subject.Credits));
     }
+
+    [HttpPut("{id}")]
+    [Authorize(Roles = UserRole.Admin)]
+    public async Task<IActionResult> UpdateSubject(Guid id, [FromBody] CreateSubjectRequest request)
+    {
+        var subject = await _context.Subjects.FindAsync(id);
+        if (subject == null) return NotFound(new { message = "Môn học không tồn tại" });
+        if (!ValidSubject(request)) return BadRequest(new { message = "Thông tin môn học không hợp lệ" });
+        var code = request.Code.Trim().ToUpperInvariant();
+        if (await _context.Subjects.AnyAsync(s => s.Id != id && s.Code == code))
+            return BadRequest(new { message = "Mã môn học đã tồn tại" });
+        subject.Code = code;
+        subject.Name = request.Name.Trim();
+        subject.Credits = request.Credits;
+        await _context.SaveChangesAsync();
+        return Ok(new SubjectDto(subject.Id, subject.Code, subject.Name, subject.Credits));
+    }
+
+    private static bool ValidSubject(CreateSubjectRequest request) =>
+        !string.IsNullOrWhiteSpace(request.Code) && request.Code.Trim().Length <= 20 &&
+        !string.IsNullOrWhiteSpace(request.Name) && request.Name.Trim().Length <= 150 && request.Credits > 0;
 
     [HttpDelete("{id}")]
     [Authorize(Roles = UserRole.Admin)]

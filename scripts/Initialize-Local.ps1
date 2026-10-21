@@ -71,8 +71,14 @@ $connStr = "Host=127.0.0.1;Port=$Port;Database=phamlehuyhoang;Username=phamlehuy
 $settings = @{
     ConnectionStrings = @{ DefaultConnection = $connStr }
     Jwt = @{ Secret = $state.JwtSecret }
-    SeedAdmin = @{ Username = 'admin'; Password = $state.AdminPassword }
-    Database = @{ AutoMigrate = $true; SeedDemo = $true }
+    Database = @{ AutoMigrate = $true; SeedDemo = $false }
+}
+$existingSettingsPath = Join-Path $localDir 'api-settings.json'
+if (Test-Path -LiteralPath $existingSettingsPath) {
+    $existingSettings = Get-Content -Raw -LiteralPath $existingSettingsPath | ConvertFrom-Json
+    foreach ($taskSection in @('Smtp', 'BootstrapAdmin')) {
+        if ($existingSettings.PSObject.Properties[$taskSection]) { $settings[$taskSection] = $existingSettings.$taskSection }
+    }
 }
 $settings | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $localDir 'api-settings.json') -Encoding utf8
 
@@ -81,10 +87,8 @@ PostgreSQL: 127.0.0.1:$Port / phamlehuyhoang
 Username: phamlehuyhoang_app
 Password: $($state.AppPassword)
 
-Admin:
-Username: admin
-Password: $($state.AdminPassword)
+Ung dung khong tao tai khoan dang nhap mau. Dang ky va xac minh email de su dung.
 "@ | Set-Content -LiteralPath (Join-Path $localDir 'dev-accounts.txt') -Encoding utf8
 
 Write-Host "PostgreSQL local da san sang tai 127.0.0.1:$Port / phamlehuyhoang"
-Write-Host "ConnectionString: $connStr"
+Write-Host 'Cau hinh ket noi da luu rieng trong .local/api-settings.json.'

@@ -35,9 +35,9 @@ public class AttendanceController : ControllerBase
             var qr = await _attendanceService.OpenOrRefreshQrSessionAsync(request.ClassSessionId, userId, request.LifetimeSeconds);
             return Ok(qr);
         }
-        catch (UnauthorizedAccessException ex)
+        catch (UnauthorizedAccessException)
         {
-            return Forbid(ex.Message);
+            return Forbid();
         }
         catch (Exception ex)
         {
@@ -52,13 +52,23 @@ public class AttendanceController : ControllerBase
         var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
 
-        await _attendanceService.CloseQrSessionAsync(classSessionId, userId);
-        return Ok(new { message = "Đã đóng phiên điểm danh QR" });
+        try
+        {
+            await _attendanceService.CloseQrSessionAsync(classSessionId, userId);
+            return Ok(new { message = "Đã đóng phiên điểm danh QR" });
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
     [HttpGet("qr/active/{classSessionId}")]
+    [Authorize(Roles = $"{UserRole.Admin},{UserRole.Lecturer}")]
     public async Task<ActionResult<QrSessionDto>> GetActiveQrSession(Guid classSessionId)
     {
+        var session = await _context.ClassSessions.FindAsync(classSessionId);
+        if (session == null) return NotFound(new { message = "Buổi học không tồn tại" });
+        if (!await ResourceAuthorization.CanManageClassAsync(_context, User, session.CourseClassId)) return Forbid();
+        if (session.IsCancelled || session.IsFinalized) return NotFound(new { message = "Buổi học không có QR đang hoạt động" });
         var now = DateTime.UtcNow;
         var qr = await _context.AttendanceQrSessions
             .Where(q => q.ClassSessionId == classSessionId && q.IsOpen && q.ExpiresAtUtc > now)
@@ -107,6 +117,10 @@ public class AttendanceController : ControllerBase
             );
             return Ok(updated);
         }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
         catch (Exception ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -117,6 +131,9 @@ public class AttendanceController : ControllerBase
     [Authorize(Roles = $"{UserRole.Admin},{UserRole.Lecturer}")]
     public async Task<ActionResult<List<AttendanceRecordDto>>> GetSessionAttendance(Guid sessionId)
     {
+        var session = await _context.ClassSessions.FindAsync(sessionId);
+        if (session == null) return NotFound(new { message = "Buổi học không tồn tại" });
+        if (!await ResourceAuthorization.CanManageClassAsync(_context, User, session.CourseClassId)) return Forbid();
         var records = await _context.AttendanceRecords
             .Include(r => r.Student)
             .Where(r => r.ClassSessionId == sessionId)
@@ -146,6 +163,8 @@ public class AttendanceController : ControllerBase
         var role = User.FindFirstValue(ClaimTypes.Role);
         var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
+
+        if (!await ResourceAuthorization.CanReadClassAsync(_context, User, courseClassId)) return Forbid();
 
         try
         {

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+
 import '../../models/attendance_models.dart';
 import '../../services/attendance_service.dart';
 import '../../services/location_service.dart';
@@ -13,28 +15,61 @@ class QrScannerScreen extends StatefulWidget {
 }
 
 class _QrScannerScreenState extends State<QrScannerScreen> {
-  final MobileScannerController _scannerController = MobileScannerController();
+  final MobileScannerController _scannerController = MobileScannerController(
+    formats: const [BarcodeFormat.qrCode],
+  );
   bool _isProcessing = false;
-  final _manualTokenCtrl = TextEditingController();
+  bool _completed = false;
+  Position? _lastPosition;
+  String? _resolvedAddress;
+  Position? _livePosition;
+  String? _liveAddress;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchLiveLocation();
+  }
+
+  Future<void> _fetchLiveLocation() async {
+    try {
+      final pos = await LocationService.getCurrentLocation(strict: false);
+      final addr = await LocationService.getAddressFromCoordinates(pos.latitude, pos.longitude);
+      if (mounted) {
+        setState(() {
+          _livePosition = pos;
+          _liveAddress = addr;
+        });
+      }
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
     _scannerController.dispose();
-    _manualTokenCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _handleQrDetected(String qrToken) async {
-    if (_isProcessing) return;
+    if (_isProcessing || _completed || !mounted) return;
     setState(() => _isProcessing = true);
 
     try {
+      await _scannerController.stop();
+      if (!mounted) return;
       // 1. Lấy vị trí GPS hiện tại
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Row(
             children: [
-              SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              ),
               SizedBox(width: 12),
               Text('Đang lấy vị trí GPS và đối chiếu khoảng cách...'),
             ],
@@ -44,6 +79,15 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       );
 
       final position = await LocationService.getCurrentLocation();
+      _lastPosition = position;
+      try {
+        _resolvedAddress = await LocationService.getAddressFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+      } catch (_) {
+        _resolvedAddress = _liveAddress;
+      }
 
       // 2. Gửi lên máy chủ kiểm tra
       final result = await AttendanceService.checkIn(
@@ -51,20 +95,42 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         latitude: position.latitude,
         longitude: position.longitude,
         accuracy: position.accuracy,
+        capturedAt: position.timestamp,
       );
 
       if (!mounted) return;
-      _showResultDialog(result);
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      final closeScanner = await _showResultDialog(result);
+      if (closeScanner == true && mounted) {
+        _completed = true;
+        if (Navigator.canPop(context)) Navigator.pop(context);
+      }
     } catch (e) {
       if (!mounted) return;
-      _showErrorDialog(e.toString());
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      await _showErrorDialog(e.toString());
     } finally {
-      if (mounted) setState(() => _isProcessing = false);
+      if (mounted && !_completed) {
+        setState(() => _isProcessing = false);
+        try {
+          await _scannerController.start();
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Không thể mở lại camera. Vui lòng quay lại màn hình quét QR.',
+                ),
+              ),
+            );
+          }
+        }
+      }
     }
   }
 
-  void _showResultDialog(CheckInResultDto result) {
-    showDialog(
+  Future<bool?> _showResultDialog(CheckInResultDto result) {
+    return showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
@@ -73,34 +139,108 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           size: 56,
           color: result.success ? AppTheme.success : AppTheme.danger,
         ),
-        title: Text(result.success ? 'Điểm danh Thành công!' : 'Điểm danh Thất bại'),
+        title: Text(
+          result.success ? 'Điểm danh Thành công!' : 'Điểm danh Thất bại',
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(result.message, style: const TextStyle(fontSize: 14)),
             const SizedBox(height: 12),
-            if (result.distanceMeters != null)
-              Text('Khoảng cách tới phòng học: ${result.distanceMeters!.toStringAsFixed(1)} mét'),
+            if (result.distanceMeters != null) ...[
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: result.success ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: result.success ? const Color(0xFFBBF7D0) : const Color(0xFFFECACA),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          result.success ? Icons.check_circle : Icons.warning_amber_rounded,
+                          size: 18,
+                          color: result.success ? AppTheme.success : AppTheme.danger,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Khoảng cách: ${result.distanceMeters!.toStringAsFixed(1)} mét',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: result.success ? const Color(0xFF166534) : AppTheme.danger,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_lastPosition != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Sai số GPS: ±${_lastPosition!.accuracy.toStringAsFixed(1)}m (Tín hiệu vệ tinh thật)',
+                        style: const TextStyle(fontSize: 11, color: Colors.black54),
+                      ),
+                    ],
+                    if (_resolvedAddress != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Vị trí: $_resolvedAddress',
+                        style: const TextStyle(fontSize: 11, color: Colors.black87),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             if (result.status != null)
-              Text('Trạng thái: ${result.status!.label}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                'Trạng thái: ${result.status!.label}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            if (_lastPosition != null) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: const Icon(Icons.map, size: 16),
+                  label: const Text('Xem vị trí quét trên Google Maps', style: TextStyle(fontSize: 12)),
+                  onPressed: () {
+                    LocationService.openGoogleMaps(
+                      _lastPosition!.latitude,
+                      _lastPosition!.longitude,
+                      label: 'Vị trí điểm danh của sinh viên',
+                    );
+                  },
+                ),
+              ),
+            ],
           ],
         ),
         actions: [
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.pop(context); // Quay về dashboard
+              Navigator.pop(ctx, result.success);
             },
-            child: const Text('Đóng'),
+            child: Text(result.success ? 'Đóng' : 'Thử lại'),
           ),
         ],
       ),
     );
   }
 
-  void _showErrorDialog(String error) {
-    showDialog(
+  Future<void> _showErrorDialog(String error) {
+    return showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.warning, size: 48, color: AppTheme.danger),
@@ -110,35 +250,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Thử lại'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showManualInputDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Nhập mã QR thủ công (AVD/Test)'),
-        content: TextField(
-          controller: _manualTokenCtrl,
-          decoration: const InputDecoration(
-            labelText: 'Mã QR Token',
-            hintText: 'DEMO-QR-... hoặc token',
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
-          ElevatedButton(
-            onPressed: () {
-              final token = _manualTokenCtrl.text.trim();
-              Navigator.pop(ctx);
-              if (token.isNotEmpty) {
-                _handleQrDetected(token);
-              }
-            },
-            child: const Text('Gửi điểm danh'),
           ),
         ],
       ),
@@ -161,11 +272,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
             tooltip: 'Đổi Camera',
             onPressed: () => _scannerController.switchCamera(),
           ),
-          IconButton(
-            icon: const Icon(Icons.keyboard),
-            tooltip: 'Nhập token thủ công',
-            onPressed: _showManualInputDialog,
-          ),
         ],
       ),
       body: Stack(
@@ -182,6 +288,62 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                 }
               }
             },
+          ),
+
+          // Vị trí người dùng hiện tại (Overlay)
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(200),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.my_location, color: Colors.lightGreenAccent, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _liveAddress ?? 'Đang tải vị trí người dùng...',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (_livePosition != null)
+                          Text(
+                            'Tọa độ: ${_livePosition!.latitude.toStringAsFixed(5)}, ${_livePosition!.longitude.toStringAsFixed(5)} (±${_livePosition!.accuracy.toStringAsFixed(1)}m)',
+                            style: const TextStyle(color: Colors.white70, fontSize: 10),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (_livePosition != null)
+                    IconButton(
+                      icon: const Icon(Icons.map, color: Colors.lightBlueAccent, size: 22),
+                      tooltip: 'Mở xem trực tiếp trên Google Maps',
+                      onPressed: () {
+                        LocationService.openGoogleMaps(
+                          _livePosition!.latitude,
+                          _livePosition!.longitude,
+                          label: 'Vị trí hiện tại của tôi',
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
           ),
 
           // Khung ngắm
@@ -226,7 +388,11 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     SizedBox(height: 16),
                     Text(
                       'Đang xử lý điểm danh & tọa độ GPS...',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),

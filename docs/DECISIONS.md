@@ -23,13 +23,14 @@ Tài liệu này ghi lại toàn bộ quyết định kỹ thuật tự chủ ch
 
 ## 3. Xác thực, OTP và Phân quyền
 - **Đăng ký:** Chỉ cho phép đăng ký tài khoản mới với vai trò `Student`. Vai trò `Admin` và `Lecturer` do Quản trị viên quản lý.
-- **Mật khẩu:** Sử dụng `Microsoft.AspNetCore.Identity.PasswordHasher<ApplicationUser>` (PBKDF2 SHA-256 tiêu chuẩn của ASP.NET Core).
+- **Mật khẩu:** Sử dụng `Microsoft.AspNetCore.Identity.PasswordHasher<User>` với PBKDF2.
 - **Luồng đăng nhập 2 lớp (Mật khẩu / Khuôn mặt + OTP):**
   1. Người dùng nhập Username/Password HOẶC nhận diện khuôn mặt thành công.
   2. API cấp một `PreAuthTicket` (chỉ dùng để xác thực OTP, không gọi được các API nghiệp vụ).
   3. API sinh mã OTP 6 chữ số ngẫu nhiên bảo mật (`RandomNumberGenerator`), hiệu lực 5 phút, tối đa 5 lần thử, thời gian chờ gửi lại 60 giây.
   4. Người dùng xác nhận OTP đúng -> API cấp JWT Access Token chính thức với vai trò tương ứng.
-- **Dịch vụ Email OTP:** Cung cấp `EmailService` tích hợp `MailKit`. Hỗ trợ cấu hình SMTP thực qua biến môi trường (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`). Ở chế độ Development/Local test, mã OTP được ghi đồng thời ra dev log và trả kèm thông báo dev rõ ràng để không làm gián đoạn kiểm thử khi chưa nạp tài khoản SMTP thật.
+- **Dịch vụ Email OTP:** `EmailService` dùng MailKit và SMTP thật qua cấu hình riêng hoặc biến môi trường. Không trả OTP về API, không in log và không tự điền, kể cả Development. Đăng ký cần OTP kích hoạt; đăng nhập cần OTP riêng. Thiếu/lỗi SMTP trả HTTP 503. Xem [EMAIL_SETUP.md](EMAIL_SETUP.md).
+- **Thu hồi phiên:** JWT mang `auth_version`; đổi vai trò/email/khóa/mở khóa tăng `Users.AuthVersion` và vô hiệu OTP đang chờ. Token cũ không có hiệu lực trở lại khi hoàn tác giá trị tài khoản.
 
 ---
 
@@ -53,7 +54,7 @@ Tài liệu này ghi lại toàn bộ quyết định kỹ thuật tự chủ ch
 ### 4.3. Đăng nhập bằng khuôn mặt (Mục a)
 - Chỉ sinh viên đã đăng nhập mới được đăng ký/cập nhật mẫu khuôn mặt của chính mình.
 - Sử dụng trích xuất đặc trưng khuôn mặt (facial feature embedding vector) và đối chiếu 1:1 với mẫu đã lưu của tài khoản bằng độ tương đồng Cosine (Cosine Similarity).
-- Ngưỡng đối chiếu (Threshold): `>= 0.60` theo chuẩn OpenCV SFace.
+- YuNet phát hiện mặt, SFace trích xuất 128 đặc trưng; cosine mặc định `>= 0.363`. Mô hình thật có hash/giấy phép và hướng dẫn tại [FACE_SETUP.md](FACE_SETUP.md). Mẫu độ sáng cũ bị từ chối, cần đăng ký lại.
 - Xử lý các tình huống biên: không phát hiện khuôn mặt, phát hiện nhiều khuôn mặt, ảnh mờ/lỗi, khuôn mặt không khớp.
 - Fallback: Luôn có nút quay về đăng nhập Mật khẩu + OTP khi nhận diện hoặc camera gặp sự cố.
 - Liveness: Ghi nhận trung thực giới hạn chống giả mạo ảnh/video 2D (cần camera chiều sâu/chuyển động để có liveness hoàn chỉnh).
@@ -74,8 +75,6 @@ Tài liệu này ghi lại toàn bộ quyết định kỹ thuật tự chủ ch
 
 ---
 
-## 6. Tài khoản mẫu môi trường Development
-- **Quản trị viên:** `admin` / `Admin@123456`
-- **Giảng viên:** `giangvien1` / `GiangVien@123`
-- **Sinh viên:** `sinhvien1` / `SinhVien@123`
-- **Sinh viên 2:** `sinhvien2` / `SinhVien@123`
+## 6. Tài khoản thật
+
+Không tự seed tài khoản hoặc lớp mẫu. Sinh viên đăng ký bằng email thật; admin mới được cấu hình riêng qua `scripts/Configure-Admin.ps1`, vẫn cần xác minh email và OTP đăng nhập. Giữ nguyên dữ liệu cũ khi nâng cấp. Không có nút vào nhanh hoặc nhập token QR AVD/Test.

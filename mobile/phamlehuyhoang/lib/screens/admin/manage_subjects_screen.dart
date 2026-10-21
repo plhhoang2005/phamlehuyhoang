@@ -1,124 +1,155 @@
 import 'package:flutter/material.dart';
+
 import '../../models/class_models.dart';
 import '../../services/api_client.dart';
-import '../../theme/app_theme.dart';
+import 'management_widgets.dart';
 
 class ManageSubjectsScreen extends StatefulWidget {
   const ManageSubjectsScreen({super.key});
-
   @override
   State<ManageSubjectsScreen> createState() => _ManageSubjectsScreenState();
 }
 
 class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> {
   List<SubjectDto> _subjects = [];
-  bool _isLoading = true;
+  bool _loading = true;
+  bool _deleting = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadSubjects();
+    _load();
   }
 
-  Future<void> _loadSubjects() async {
-    setState(() => _isLoading = true);
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      final res = await ApiClient.get('/api/subjects');
+      final result = await ApiClient.get('/api/subjects');
       if (mounted) {
-        setState(() {
-          _subjects = (res as List).map((s) => SubjectDto.fromJson(s)).toList();
-          _isLoading = false;
-        });
+        setState(
+          () => _subjects = (result as List)
+              .map((s) => SubjectDto.fromJson(s))
+              .toList(),
+        );
       }
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _showCreateSubjectDialog() async {
-    final codeCtrl = TextEditingController();
-    final nameCtrl = TextEditingController();
-    final creditsCtrl = TextEditingController(text: '3');
-
-    await showDialog(
+  Future<void> _edit([SubjectDto? subject]) async {
+    final saved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Thêm môn học mới'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: codeCtrl, decoration: const InputDecoration(labelText: 'Mã môn học * (VD: INT3102)')),
-            const SizedBox(height: 10),
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Tên môn học *')),
-            const SizedBox(height: 10),
-            TextField(controller: creditsCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Số tín chỉ *')),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
-          ElevatedButton(
-            onPressed: () async {
-              if (codeCtrl.text.isEmpty || nameCtrl.text.isEmpty) return;
-              Navigator.pop(ctx);
-              try {
-                await ApiClient.post('/api/subjects', {
-                  'code': codeCtrl.text.trim().toUpperCase(),
-                  'name': nameCtrl.text.trim(),
-                  'credits': int.tryParse(creditsCtrl.text) ?? 3,
-                });
-                _loadSubjects();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Thêm môn học thành công!'), backgroundColor: AppTheme.success),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppTheme.danger),
-                  );
-                }
-              }
-            },
-            child: const Text('Tạo môn học'),
+      barrierDismissible: false,
+      builder: (_) => ManagementFormDialog(
+        title: subject == null ? 'Thêm môn học mới' : 'Sửa môn học',
+        initial: {
+          'code': subject?.code ?? '',
+          'name': subject?.name ?? '',
+          'credits': '${subject?.credits ?? 3}',
+        },
+        fields: (_, c, _) => [
+          managementField(c['code']!, 'Mã môn học *'),
+          managementField(c['name']!, 'Tên môn học *'),
+          managementField(
+            c['credits']!,
+            'Số tín chỉ *',
+            keyboardType: TextInputType.number,
+            validate: (v) => integerValue(v),
           ),
         ],
+        save: (c) async {
+          final body = {
+            'code': c['code']!.text.trim().toUpperCase(),
+            'name': c['name']!.text.trim(),
+            'credits': int.parse(c['credits']!.text.trim()),
+          };
+          if (subject == null) {
+            await ApiClient.post('/api/subjects', body);
+          } else {
+            await ApiClient.put('/api/subjects/${subject.id}', body);
+          }
+        },
       ),
     );
+    if (saved == true && mounted) await _load();
+  }
+
+  Future<void> _delete(SubjectDto subject) async {
+    if (!await confirmManagementAction(
+      context,
+      'Xóa môn học?',
+      'Xóa ${subject.code} — ${subject.name}? Môn đang có lớp học không thể xóa.',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _deleting = true);
+    try {
+      await ApiClient.delete('/api/subjects/${subject.id}');
+      if (mounted) await _load();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Quản lý Môn học'),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadSubjects),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showCreateSubjectDialog,
-        child: const Icon(Icons.add),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: _subjects.length,
-              itemBuilder: (ctx, i) {
-                final s = _subjects[i];
-                return Card(
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: AppTheme.secondary.withAlpha(25),
-                      child: Text('${s.credits} TC', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppTheme.secondary)),
-                    ),
-                    title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text('Mã môn: ${s.code}'),
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Quản lý Môn học'),
+      actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh))],
+    ),
+    floatingActionButton: FloatingActionButton(
+      onPressed: _loading ? null : () => _edit(),
+      tooltip: 'Thêm môn học',
+      child: const Icon(Icons.add),
+    ),
+    body: _loading
+        ? const Center(child: CircularProgressIndicator())
+        : _error != null
+        ? managementError(_error!, _load)
+        : _subjects.isEmpty
+        ? const Center(child: Text('Chưa có môn học. Nhấn + để thêm.'))
+        : ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: _subjects.length,
+            itemBuilder: (_, i) {
+              final subject = _subjects[i];
+              return Card(
+                child: ListTile(
+                  title: Text(subject.name),
+                  subtitle: Text(
+                    '${subject.code} • ${subject.credits} tín chỉ',
                   ),
-                );
-              },
-            ),
-    );
-  }
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Sửa môn học',
+                        onPressed: _deleting ? null : () => _edit(subject),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Xóa môn học',
+                        onPressed: _deleting ? null : () => _delete(subject),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+  );
 }

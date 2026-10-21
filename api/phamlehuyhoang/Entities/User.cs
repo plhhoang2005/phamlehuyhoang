@@ -37,5 +37,9 @@ public class User
 
     public DateTime? FaceRegisteredAtUtc { get; set; }
 
+    public bool EmailConfirmed { get; set; } = false;
+
     public bool IsActive { get; set; } = true;
+
+    public int AuthVersion { get; set; }
 }

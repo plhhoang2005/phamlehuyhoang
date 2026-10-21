@@ -10,4 +10,7 @@ if (-not (Test-Path $dataDir)) {
     return
 }
 
-& (Join-Path $PostgresBin 'pg_ctl.exe') -D $dataDir -l (Join-Path $localDir 'postgres.log') start
+& (Join-Path $PostgresBin 'pg_ctl.exe') -D $dataDir status *> $null
+if ($LASTEXITCODE -ne 0) {
+    & (Join-Path $PostgresBin 'pg_ctl.exe') -D $dataDir -l (Join-Path $localDir 'postgres.log') -w start
+}

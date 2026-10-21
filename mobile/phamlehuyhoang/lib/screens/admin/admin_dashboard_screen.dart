@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../models/auth_models.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/current_location_card.dart';
 import '../auth/login_screen.dart';
+import '../student/register_face_screen.dart';
 import 'manage_classes_screen.dart';
 import 'manage_subjects_screen.dart';
 import 'manage_users_screen.dart';
@@ -100,7 +102,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+
+            // Vị trí hiện tại của Quản trị viên + Google Maps
+            const CurrentLocationCard(
+              title: 'Vị trí hiện tại của quản trị viên',
+            ),
+            const SizedBox(height: 16),
 
             const Text('Chức năng Quản lý Hệ thống:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
@@ -142,6 +150,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ManageClassesScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+
+            _buildAdminMenuCard(
+              icon: Icons.face_retouching_natural,
+              color: const Color(0xFF7B1FA2),
+              title: 'Đăng ký Mẫu Khuôn mặt (Mục a)',
+              subtitle: 'Chụp mẫu mặt của bạn để đăng nhập nhanh cho Quản trị viên',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RegisterFaceScreen()),
                 );
               },
             ),

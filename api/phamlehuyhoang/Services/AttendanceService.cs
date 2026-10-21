@@ -57,21 +57,14 @@ public class AttendanceService : IAttendanceService
 
         if (session == null) throw new InvalidOperationException("Buổi học không tồn tại");
 
-        // Kiểm tra quyền của giảng viên (nếu có giảng viên được gán)
-        if (session.CourseClass?.LecturerId.HasValue == true && session.CourseClass.LecturerId.Value != lecturerUserId)
-        {
-            // Kiểm tra xem user có phải admin không
-            var user = await _context.Users.FindAsync(lecturerUserId);
-            if (user?.Role != UserRole.Admin)
-            {
-                throw new UnauthorizedAccessException("Bạn không được phân công giảng dạy lớp học phần này");
-            }
-        }
+        await ResourceAuthorization.DemandManageClassAsync(_context, lecturerUserId, session.CourseClassId);
 
-        if (session.IsFinalized)
+        if (session.IsFinalized || session.IsCancelled)
         {
-            throw new InvalidOperationException("Buổi học này đã chốt kết quả, không thể mở lại QR");
+            throw new InvalidOperationException("Buổi học đã hủy hoặc đã chốt kết quả, không thể mở lại QR");
         }
+        if (lifetimeSeconds < 1 || lifetimeSeconds > 300)
+            throw new ArgumentException("Thời hạn QR phải từ 1 đến 300 giây");
 
         // Đóng các phiên QR cũ đang mở
         var oldQrSessions = await _context.AttendanceQrSessions
@@ -105,6 +98,9 @@ public class AttendanceService : IAttendanceService
 
     public async Task<bool> CloseQrSessionAsync(Guid classSessionId, Guid lecturerUserId)
     {
+        var session = await _context.ClassSessions.FindAsync(classSessionId)
+            ?? throw new InvalidOperationException("Buổi học không tồn tại");
+        await ResourceAuthorization.DemandManageClassAsync(_context, lecturerUserId, session.CourseClassId);
         var activeSessions = await _context.AttendanceQrSessions
             .Where(q => q.ClassSessionId == classSessionId && q.IsOpen)
             .ToListAsync();
@@ -129,7 +125,7 @@ public class AttendanceService : IAttendanceService
         }
 
         // 2. Kiểm tra độ chính xác GPS
-        if (request.Accuracy > MaxAllowedAccuracyMeters)
+        if (!double.IsFinite(request.Accuracy) || request.Accuracy < 0 || request.Accuracy > MaxAllowedAccuracyMeters)
         {
             return new CheckInResultDto(false,
                 $"Độ chính xác GPS ({request.Accuracy:F1}m) không đạt yêu cầu (tối đa {MaxAllowedAccuracyMeters}m). Vui lòng ra nơi thông thoáng và thử lại",
@@ -138,7 +134,8 @@ public class AttendanceService : IAttendanceService
 
         // 3. Kiểm tra thời gian lấy vị trí (không nhận mẫu quá cũ)
         var now = DateTime.UtcNow;
-        if (request.ClientTimestampUtc.HasValue)
+        if (!request.ClientTimestampUtc.HasValue)
+            return new CheckInResultDto(false, "Thiếu thời gian lấy vị trí GPS. Vui lòng lấy vị trí mới và quét lại", null, null, null);
         {
             var age = (now - request.ClientTimestampUtc.Value).TotalSeconds;
             if (age > MaxLocationAgeSeconds || age < -30) // Chặn tương lai bất thường > 30s
@@ -169,7 +166,7 @@ public class AttendanceService : IAttendanceService
         }
 
         var classSession = qrSession.ClassSession;
-        if (classSession == null || classSession.IsFinalized)
+        if (classSession == null || classSession.IsFinalized || classSession.IsCancelled)
         {
             return new CheckInResultDto(false, "Buổi học này đã kết thúc hoặc đã chốt điểm danh", null, null, null);
         }
@@ -198,8 +195,10 @@ public class AttendanceService : IAttendanceService
 
         if (existingRecord != null)
         {
-            return new CheckInResultDto(true,
-                $"Bạn đã điểm danh buổi học này trước đó lúc {existingRecord.CheckedInAtUtc?.ToLocalTime():HH:mm:ss dd/MM/yyyy}",
+            var checkedIn = IsPersistedCheckIn(existingRecord);
+            return new CheckInResultDto(checkedIn,
+                checkedIn ? $"Bạn đã điểm danh buổi học này trước đó lúc {existingRecord.CheckedInAtUtc?.ToLocalTime():HH:mm:ss dd/MM/yyyy}"
+                    : "Đã có kết quả điểm danh do giảng viên ghi nhận. Vui lòng liên hệ giảng viên để kiểm tra.",
                 existingRecord.Status, existingRecord.DistanceMeters, existingRecord.CheckedInAtUtc);
         }
 
@@ -231,12 +230,19 @@ public class AttendanceService : IAttendanceService
             _context.AttendanceRecords.Add(newRecord);
             await _context.SaveChangesAsync();
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex)
         {
-            // Do unique constraint bắt được trường hợp 2 request bấm cùng lúc
-            var raceRecord = await _context.AttendanceRecords
+            // Chỉ trả thành công khi có bản ghi đã lưu từ một yêu cầu đồng thời.
+            _context.Entry(newRecord).State = EntityState.Detached;
+            var raceRecord = await _context.AttendanceRecords.AsNoTracking()
                 .FirstOrDefaultAsync(r => r.ClassSessionId == classSession.Id && r.StudentId == studentUserId);
-            return new CheckInResultDto(true, "Bạn đã được ghi nhận điểm danh", raceRecord?.Status ?? status, distance, now);
+            if (raceRecord != null)
+                return new CheckInResultDto(IsPersistedCheckIn(raceRecord),
+                    IsPersistedCheckIn(raceRecord) ? "Bạn đã được ghi nhận điểm danh"
+                        : "Buổi học đã chốt hoặc kết quả đã thay đổi. Vui lòng liên hệ giảng viên.",
+                    raceRecord.Status, raceRecord.DistanceMeters, raceRecord.CheckedInAtUtc);
+            _logger.LogError(ex, "Could not persist attendance for session {SessionId}", classSession.Id);
+            return new CheckInResultDto(false, "Không thể lưu kết quả điểm danh. Vui lòng thử lại", null, null, null);
         }
 
         string successMsg = status == AttendanceStatus.Late
@@ -246,6 +252,9 @@ public class AttendanceService : IAttendanceService
         return new CheckInResultDto(true, successMsg, status, distance, now);
     }
 
+    private static bool IsPersistedCheckIn(AttendanceRecord record) =>
+        record.CheckedInAtUtc.HasValue && record.Status is AttendanceStatus.Present or AttendanceStatus.Late;
+
     public async Task<bool> FinalizeSessionAsync(Guid classSessionId, Guid lecturerUserId)
     {
         var session = await _context.ClassSessions
@@ -253,6 +262,10 @@ public class AttendanceService : IAttendanceService
             .FirstOrDefaultAsync(s => s.Id == classSessionId);
 
         if (session == null) throw new InvalidOperationException("Buổi học không tồn tại");
+
+        await ResourceAuthorization.DemandManageClassAsync(_context, lecturerUserId, session.CourseClassId);
+        if (session.IsCancelled) throw new InvalidOperationException("Không thể chốt buổi học đã hủy");
+        if (session.IsFinalized) return true;
 
         // Đóng toàn bộ QR đang mở
         var openQrs = await _context.AttendanceQrSessions
@@ -305,6 +318,13 @@ public class AttendanceService : IAttendanceService
             .FirstOrDefaultAsync(r => r.Id == recordId);
 
         if (record == null) throw new InvalidOperationException("Bản ghi điểm danh không tồn tại");
+
+        var session = await _context.ClassSessions.FindAsync(record.ClassSessionId)
+            ?? throw new InvalidOperationException("Buổi học không tồn tại");
+        await ResourceAuthorization.DemandManageClassAsync(_context, changedByUserId, session.CourseClassId);
+        if (!Enum.IsDefined(newStatus) || string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 230)
+            throw new ArgumentException("Trạng thái hoặc lý do điều chỉnh không hợp lệ (tối đa 230 ký tự)");
+        reason = reason.Trim();
 
         var oldStatus = record.Status;
         record.Status = newStatus;

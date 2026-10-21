@@ -5,7 +5,8 @@ namespace phamlehuyhoang.Services;
 
 public interface IAuthService
 {
-    Task<User> RegisterStudentAsync(RegisterRequest request);
+    Task<PreAuthResponse> RegisterStudentAsync(RegisterRequest request);
+    Task VerifyEmailAsync(VerifyOtpRequest request);
     Task<PreAuthResponse> LoginAsync(LoginRequest request);
     Task<PreAuthResponse> FaceLoginAsync(FaceLoginRequest request);
     Task<AuthResponse> VerifyOtpAndGenerateTokenAsync(VerifyOtpRequest request);

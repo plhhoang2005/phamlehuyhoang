@@ -6,6 +6,7 @@ class UserDto {
   final String? studentCode;
   final String role;
   final bool hasFaceRegistered;
+  final bool isActive;
 
   UserDto({
     required this.id,
@@ -15,6 +16,7 @@ class UserDto {
     this.studentCode,
     required this.role,
     required this.hasFaceRegistered,
+    this.isActive = true,
   });
 
   factory UserDto.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,7 @@ class UserDto {
       studentCode: json['studentCode'],
       role: json['role'] ?? 'Student',
       hasFaceRegistered: json['hasFaceRegistered'] ?? false,
+      isActive: json['isActive'] ?? true,
     );
   }
 
@@ -37,6 +40,7 @@ class UserDto {
     'studentCode': studentCode,
     'role': role,
     'hasFaceRegistered': hasFaceRegistered,
+    'isActive': isActive,
   };
 }
 
@@ -44,13 +48,15 @@ class PreAuthResponse {
   final String ticket;
   final String message;
   final int expiresInSeconds;
-  final String? devOtpCode;
+  final String purpose;
+
+  bool get isActivation => purpose == 'EmailActivation';
 
   PreAuthResponse({
     required this.ticket,
     required this.message,
     required this.expiresInSeconds,
-    this.devOtpCode,
+    this.purpose = 'Login',
   });
 
   factory PreAuthResponse.fromJson(Map<String, dynamic> json) {
@@ -58,7 +64,7 @@ class PreAuthResponse {
       ticket: json['ticket'] ?? '',
       message: json['message'] ?? '',
       expiresInSeconds: json['expiresInSeconds'] ?? 300,
-      devOtpCode: json['devOtpCode'],
+      purpose: json['purpose'] ?? 'Login',
     );
   }
 }
@@ -67,10 +73,7 @@ class AuthResponse {
   final String token;
   final UserDto user;
 
-  AuthResponse({
-    required this.token,
-    required this.user,
-  });
+  AuthResponse({required this.token, required this.user});
 
   factory AuthResponse.fromJson(Map<String, dynamic> json) {
     return AuthResponse(

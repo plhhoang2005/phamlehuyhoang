@@ -1,5 +1,7 @@
 import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/auth_models.dart';
 import 'api_client.dart';
 
@@ -15,7 +17,7 @@ class AuthService {
     }
   }
 
-  static Future<UserDto> register({
+  static Future<PreAuthResponse> register({
     required String username,
     required String email,
     required String fullName,
@@ -30,7 +32,7 @@ class AuthService {
       'studentCode': studentCode,
     }, requireAuth: false);
 
-    return UserDto.fromJson(res);
+    return PreAuthResponse.fromJson(res);
   }
 
   static Future<PreAuthResponse> login({
@@ -57,6 +59,16 @@ class AuthService {
     return PreAuthResponse.fromJson(res);
   }
 
+  static Future<void> verifyEmail({
+    required String ticket,
+    required String code,
+  }) async {
+    await ApiClient.post('/api/auth/verify-email', {
+      'ticket': ticket,
+      'code': code,
+    }, requireAuth: false);
+  }
+
   static Future<AuthResponse> verifyOtp({
     required String ticket,
     required String code,
@@ -71,9 +83,7 @@ class AuthService {
     return authRes;
   }
 
-  static Future<PreAuthResponse> resendOtp({
-    required String ticket,
-  }) async {
+  static Future<PreAuthResponse> resendOtp({required String ticket}) async {
     final res = await ApiClient.post('/api/auth/resend-otp', {
       'ticket': ticket,
     }, requireAuth: false);

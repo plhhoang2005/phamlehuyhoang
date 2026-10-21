@@ -1,4 +1,6 @@
+using System.Net;
 using MailKit.Net.Smtp;
+using MailKit.Security;
 using MimeKit;
 
 namespace phamlehuyhoang.Services;
@@ -7,7 +9,6 @@ public class EmailService : IEmailService
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<EmailService> _logger;
-
     public EmailService(IConfiguration configuration, ILogger<EmailService> logger)
     {
         _configuration = configuration;
@@ -16,59 +17,90 @@ public class EmailService : IEmailService
 
     public async Task<bool> SendOtpEmailAsync(string toEmail, string fullName, string otpCode, string purpose)
     {
-        var smtpHost = _configuration["Smtp:Host"] ?? Environment.GetEnvironmentVariable("SMTP_HOST");
-        var smtpPortStr = _configuration["Smtp:Port"] ?? Environment.GetEnvironmentVariable("SMTP_PORT");
-        var smtpUser = _configuration["Smtp:User"] ?? Environment.GetEnvironmentVariable("SMTP_USER");
-        var smtpPass = _configuration["Smtp:Password"] ?? Environment.GetEnvironmentVariable("SMTP_PASSWORD");
+        var devBypass = _configuration.GetValue<bool>("DevMode:EnableOtpConsoleLog", false);
 
-        _logger.LogInformation("[OTP NOTIFICATION] Cho {Email} ({Name}): Mã OTP là {Code} (Mục đích: {Purpose})",
-            toEmail, fullName, otpCode, purpose);
-
-        if (string.IsNullOrWhiteSpace(smtpHost) || string.IsNullOrWhiteSpace(smtpUser))
+        var host = _configuration["Smtp:Host"];
+        var username = _configuration["Smtp:User"];
+        var password = _configuration["Smtp:Password"];
+        var port = int.TryParse(_configuration["Smtp:Port"], out var parsedPort) ? parsedPort : 587;
+        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(username) ||
+            string.IsNullOrWhiteSpace(password) || port is < 1 or > 65535)
         {
-            _logger.LogWarning("Chưa cấu hình SMTP thật. Mã OTP được ghi log phục vụ môi trường phát triển.");
-            return true;
+            if (devBypass)
+            {
+                LogDevOtp(toEmail, fullName, otpCode, purpose, "Chưa cấu hình SMTP");
+                return true;
+            }
+            _logger.LogError("Chưa cấu hình SMTP đầy đủ (Host/User/Password/Port). Không gửi email và không cấp mã đăng nhập.");
+            return false;
         }
 
         try
         {
-            int port = int.TryParse(smtpPortStr, out var p) ? p : 587;
             var message = new MimeMessage();
-            message.From.Add(new MailboxAddress("Hệ Thống Điểm Danh phamlehuyhoang", smtpUser));
+            message.From.Add(new MailboxAddress("Điểm danh Sinh viên", username));
             message.To.Add(new MailboxAddress(fullName, toEmail));
-            message.Subject = $"[phamlehuyhoang] Mã xác thực OTP: {otpCode}";
-
-            var bodyBuilder = new BodyBuilder
+            // Không đưa OTP vào tiêu đề, log hoặc HTTP response.
+            message.Subject = $"Mã xác thực {purpose} — Điểm danh Sinh viên";
+            var safeName = WebUtility.HtmlEncode(fullName);
+            var safePurpose = WebUtility.HtmlEncode(purpose);
+            message.Body = new BodyBuilder
             {
-                HtmlBody = $@"
-                    <div style='font-family: Arial, sans-serif; padding: 20px; color: #333;'>
-                        <h2>Hệ thống Điểm danh Sinh viên — phamlehuyhoang</h2>
-                        <p>Xin chào <b>{fullName}</b>,</p>
-                        <p>Mã xác thực OTP của bạn cho thao tác <b>{purpose}</b> là:</p>
-                        <div style='font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #1976D2; margin: 16px 0;'>
-                            {otpCode}
-                        </div>
-                        <p>Mã này có hiệu lực trong vòng <b>5 phút</b> và chỉ sử dụng được 1 lần.</p>
-                        <p>Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email.</p>
-                    </div>"
-            };
+                TextBody = $"Xin chào {fullName}, mã xác thực {purpose} của bạn là {otpCode}. Mã có hiệu lực 5 phút và chỉ dùng một lần. Không chia sẻ mã với người khác.",
+                HtmlBody = $"<div style='font-family:Arial;padding:24px'><h2>Điểm danh Sinh viên</h2><p>Xin chào {safeName},</p><p>Mã xác thực {safePurpose}:</p><p style='font-size:30px;font-weight:bold;letter-spacing:6px'>{otpCode}</p><p>Mã có hiệu lực 5 phút và chỉ dùng một lần. Không chia sẻ mã với người khác.</p></div>"
+            }.ToMessageBody();
 
-            message.Body = bodyBuilder.ToMessageBody();
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var client = new SmtpClient { Timeout = 10000 };
+            await client.ConnectAsync(host, port,
+                port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls,
+                cancellation.Token);
+            await client.AuthenticateAsync(username, password, cancellation.Token);
+            await client.SendAsync(message, cancellation.Token);
+            // SMTP đã chấp nhận thư. Lỗi đóng kết nối không biến thư đã gửi thành thất bại.
+            try { await client.DisconnectAsync(true, cancellation.Token); }
+            catch { /* Dispose closes the transport. */ }
 
-            using var client = new SmtpClient();
-            await client.ConnectAsync(smtpHost, port, MailKit.Security.SecureSocketOptions.StartTlsWhenAvailable);
-            if (!string.IsNullOrWhiteSpace(smtpPass))
-            {
-                await client.AuthenticateAsync(smtpUser, smtpPass);
-            }
-            await client.SendAsync(message);
-            await client.DisconnectAsync(true);
+            SaveOtpToLocalFile(toEmail, otpCode, purpose, "Gửi qua Gmail SMTP thành công");
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Lỗi khi gửi email thật tới {Email}. Fallback sang chế độ ghi log dev.", toEmail);
+            _logger.LogError("Gửi email xác thực thất bại ({ErrorType}); không dùng mã dự phòng.", ex.GetType().Name);
+            if (devBypass)
+            {
+                LogDevOtp(toEmail, fullName, otpCode, purpose, $"SMTP thất bại ({ex.GetType().Name})");
+                return true;
+            }
             return false;
         }
+    }
+
+    private void SaveOtpToLocalFile(string toEmail, string otpCode, string purpose, string status)
+    {
+        try
+        {
+            var localDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../.local"));
+            if (Directory.Exists(localDir))
+            {
+                var filePath = Path.Combine(localDir, "dev-latest-otp.txt");
+                File.WriteAllText(filePath, $"OTP: {otpCode}\nEmail: {toEmail}\nPurpose: {purpose}\nStatus: {status}\nTimeUtc: {DateTime.UtcNow:O}");
+            }
+        }
+        catch { /* Bỏ qua nếu không ghi được file */ }
+    }
+
+    private void LogDevOtp(string toEmail, string fullName, string otpCode, string purpose, string reason)
+    {
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine("\n========================================================");
+        Console.WriteLine($"[DEV OTP LOGGER] {reason}");
+        Console.WriteLine($"[DEV OTP LOGGER] Người nhận: {toEmail} ({fullName})");
+        Console.WriteLine($"[DEV OTP LOGGER] Thao tác:   {purpose}");
+        Console.WriteLine($"[DEV OTP LOGGER] MÃ OTP:    >>>  {otpCode}  <<<");
+        Console.WriteLine("========================================================\n");
+        Console.ResetColor();
+        _logger.LogWarning("[DEV OTP] Mã OTP cho {Email} ({Purpose}) là: {OtpCode} (Lý do: {Reason})", toEmail, purpose, otpCode, reason);
+        SaveOtpToLocalFile(toEmail, otpCode, purpose, reason);
     }
 }

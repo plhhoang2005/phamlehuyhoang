@@ -17,7 +17,6 @@ public class AuthService : IAuthService
     private readonly IOtpService _otpService;
     private readonly IFaceService _faceService;
     private readonly IConfiguration _configuration;
-    private readonly IWebHostEnvironment _environment;
     private readonly PasswordHasher<User> _passwordHasher;
     private readonly ILogger<AuthService> _logger;
 
@@ -33,18 +32,22 @@ public class AuthService : IAuthService
         _otpService = otpService;
         _faceService = faceService;
         _configuration = configuration;
-        _environment = environment;
         _passwordHasher = new PasswordHasher<User>();
         _logger = logger;
     }
 
-    public async Task<User> RegisterStudentAsync(RegisterRequest request)
+    public async Task<PreAuthResponse> RegisterStudentAsync(RegisterRequest request)
     {
         var cleanUsername = request.Username.Trim().ToLowerInvariant();
         var cleanEmail = request.Email.Trim().ToLowerInvariant();
 
-        if (await _context.Users.AnyAsync(u => u.Username.ToLower() == cleanUsername))
+        var existing = await _context.Users.FirstOrDefaultAsync(u => u.Username.ToLower() == cleanUsername);
+        if (existing != null)
         {
+            if (existing.IsActive && !existing.EmailConfirmed && existing.Email == cleanEmail &&
+                _passwordHasher.VerifyHashedPassword(existing, existing.PasswordHash, request.Password)
+                    != PasswordVerificationResult.Failed)
+                return await CreatePreAuthAsync(existing, OtpService.EmailActivationPurpose);
             throw new InvalidOperationException("Tên đăng nhập này đã được sử dụng");
         }
 
@@ -70,13 +73,14 @@ public class AuthService : IAuthService
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
-        return user;
+        return await CreatePreAuthAsync(user, OtpService.EmailActivationPurpose);
     }
 
     public async Task<PreAuthResponse> LoginAsync(LoginRequest request)
     {
         var cleanUsername = request.Username.Trim().ToLowerInvariant();
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Username.ToLower() == cleanUsername);
+        var user = await _context.Users.FirstOrDefaultAsync(u => 
+            u.Username.ToLower() == cleanUsername || u.Email.ToLower() == cleanUsername);
 
         if (user == null || !user.IsActive)
         {
@@ -89,17 +93,8 @@ public class AuthService : IAuthService
             throw new UnauthorizedAccessException("Tên đăng nhập hoặc mật khẩu không chính xác");
         }
 
-        // Tạo challenge OTP
-        var (challenge, rawCode) = await _otpService.CreateChallengeAsync(user.Id, "Đăng nhập mật khẩu");
-
-        string? devOtp = _environment.IsDevelopment() ? rawCode : null;
-
-        return new PreAuthResponse(
-            challenge.Ticket,
-            $"Mã OTP đã được gửi tới email {MaskEmail(user.Email)}. Vui lòng kiểm tra hộp thư",
-            OtpService.CodeLifetimeMinutes * 60,
-            devOtp
-        );
+        return await CreatePreAuthAsync(user,
+            user.EmailConfirmed ? OtpService.LoginPurpose : OtpService.EmailActivationPurpose);
     }
 
     public async Task<PreAuthResponse> FaceLoginAsync(FaceLoginRequest request)
@@ -124,23 +119,24 @@ public class AuthService : IAuthService
             throw new UnauthorizedAccessException(matchResult.Message);
         }
 
-        // Đối chiếu thành công -> Cấp challenge OTP theo luồng 2 lớp bắt buộc
-        var (challenge, rawCode) = await _otpService.CreateChallengeAsync(user.Id, "Đăng nhập khuôn mặt");
+        return await CreatePreAuthAsync(user,
+            user.EmailConfirmed ? OtpService.LoginPurpose : OtpService.EmailActivationPurpose);
+    }
 
-        string? devOtp = _environment.IsDevelopment() ? rawCode : null;
-
-        return new PreAuthResponse(
-            challenge.Ticket,
-            $"Nhận diện khuôn mặt thành công! Mã OTP đã được gửi tới email {MaskEmail(user.Email)} để xác thực bước 2",
-            OtpService.CodeLifetimeMinutes * 60,
-            devOtp
-        );
+    public async Task VerifyEmailAsync(VerifyOtpRequest request)
+    {
+        var (success, message, user) = await _otpService.VerifyOtpAsync(
+            request.Ticket, request.Code, OtpService.EmailActivationPurpose);
+        if (!success || user == null || !user.IsActive)
+            throw new UnauthorizedAccessException(message);
+        user.EmailConfirmed = true;
+        await _context.SaveChangesAsync();
     }
 
     public async Task<AuthResponse> VerifyOtpAndGenerateTokenAsync(VerifyOtpRequest request)
     {
-        var (success, message, user) = await _otpService.VerifyOtpAsync(request.Ticket, request.Code);
-        if (!success || user == null)
+        var (success, message, user) = await _otpService.VerifyOtpAsync(request.Ticket, request.Code, OtpService.LoginPurpose);
+        if (!success || user == null || !user.IsActive || !user.EmailConfirmed)
         {
             throw new UnauthorizedAccessException(message);
         }
@@ -160,22 +156,26 @@ public class AuthService : IAuthService
         return new AuthResponse(token, userDto);
     }
 
+    private async Task<PreAuthResponse> CreatePreAuthAsync(User user, string purpose)
+    {
+        var (challenge, _) = await _otpService.CreateChallengeAsync(user.Id, purpose);
+        var action = purpose == OtpService.EmailActivationPurpose ? "kích hoạt tài khoản" : "đăng nhập";
+        return new PreAuthResponse(
+            challenge.Ticket,
+            $"Mã xác thực {action} đã được gửi tới {MaskEmail(user.Email)}. Vui lòng kiểm tra hộp thư và thư rác.",
+            OtpService.CodeLifetimeMinutes * 60,
+            purpose);
+    }
+
     public async Task<PreAuthResponse> ResendOtpAsync(ResendOtpRequest request)
     {
-        var (success, message, newTicket, rawCode) = await _otpService.ResendOtpAsync(request.Ticket);
+        var (success, message, newTicket, _) = await _otpService.ResendOtpAsync(request.Ticket);
         if (!success || string.IsNullOrWhiteSpace(newTicket))
-        {
             throw new InvalidOperationException(message);
-        }
 
-        string? devOtp = _environment.IsDevelopment() ? rawCode : null;
-
-        return new PreAuthResponse(
-            newTicket,
-            message,
-            OtpService.CodeLifetimeMinutes * 60,
-            devOtp
-        );
+        var challenge = await _context.OtpChallenges.SingleAsync(c => c.Ticket == newTicket);
+        return new PreAuthResponse(newTicket, message,
+            OtpService.CodeLifetimeMinutes * 60, challenge.Purpose);
     }
 
     public async Task<bool> RegisterFaceAsync(Guid userId, RegisterFaceRequest request)
@@ -199,7 +199,8 @@ public class AuthService : IAuthService
 
     public string GenerateJwtToken(User user)
     {
-        var secret = _configuration["Jwt:Secret"] ?? "DefaultFallbackSecretKeyphamlehuyhoang1234567890123456";
+        var secret = _configuration["Jwt:Secret"]
+            ?? throw new InvalidOperationException("Máy chủ chưa cấu hình khóa xác thực.");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -209,7 +210,8 @@ public class AuthService : IAuthService
             new(ClaimTypes.Name, user.Username),
             new(ClaimTypes.Email, user.Email),
             new(ClaimTypes.Role, user.Role),
-            new("FullName", user.FullName)
+            new("FullName", user.FullName),
+            new("auth_version", user.AuthVersion.ToString(System.Globalization.CultureInfo.InvariantCulture))
         };
 
         if (!string.IsNullOrWhiteSpace(user.StudentCode))

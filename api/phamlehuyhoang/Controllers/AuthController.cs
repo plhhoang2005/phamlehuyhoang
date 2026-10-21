@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using phamlehuyhoang.Data;
 using phamlehuyhoang.DTOs;
 using phamlehuyhoang.Services;
@@ -10,11 +9,11 @@ namespace phamlehuyhoang.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[TypeFilter(typeof(AuthExceptionFilter))]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
     private readonly AppDbContext _context;
-
     public AuthController(IAuthService authService, AppDbContext context)
     {
         _authService = authService;
@@ -22,123 +21,49 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<ActionResult<UserDto>> Register([FromBody] RegisterRequest request)
+    public async Task<ActionResult<PreAuthResponse>> Register([FromBody] RegisterRequest request) =>
+        Ok(await _authService.RegisterStudentAsync(request));
+
+    [HttpPost("verify-email")]
+    public async Task<IActionResult> VerifyEmail([FromBody] VerifyOtpRequest request)
     {
-        try
-        {
-            var user = await _authService.RegisterStudentAsync(request);
-            return Ok(new UserDto(
-                user.Id,
-                user.Username,
-                user.Email,
-                user.FullName,
-                user.StudentCode,
-                user.Role,
-                false
-            ));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        await _authService.VerifyEmailAsync(request);
+        return Ok(new { message = "Tài khoản đã được kích hoạt. Vui lòng đăng nhập để tiếp tục." });
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult<PreAuthResponse>> Login([FromBody] LoginRequest request)
-    {
-        try
-        {
-            var result = await _authService.LoginAsync(request);
-            return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Unauthorized(new { message = ex.Message });
-        }
-    }
+    public async Task<ActionResult<PreAuthResponse>> Login([FromBody] LoginRequest request) =>
+        Ok(await _authService.LoginAsync(request));
 
     [HttpPost("face-login")]
-    public async Task<ActionResult<PreAuthResponse>> FaceLogin([FromBody] FaceLoginRequest request)
-    {
-        try
-        {
-            var result = await _authService.FaceLoginAsync(request);
-            return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Unauthorized(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-    }
+    public async Task<ActionResult<PreAuthResponse>> FaceLogin([FromBody] FaceLoginRequest request) =>
+        Ok(await _authService.FaceLoginAsync(request));
 
     [HttpPost("verify-otp")]
-    public async Task<ActionResult<AuthResponse>> VerifyOtp([FromBody] VerifyOtpRequest request)
-    {
-        try
-        {
-            var result = await _authService.VerifyOtpAndGenerateTokenAsync(request);
-            return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Unauthorized(new { message = ex.Message });
-        }
-    }
+    public async Task<ActionResult<AuthResponse>> VerifyOtp([FromBody] VerifyOtpRequest request) =>
+        Ok(await _authService.VerifyOtpAndGenerateTokenAsync(request));
 
     [HttpPost("resend-otp")]
-    public async Task<ActionResult<PreAuthResponse>> ResendOtp([FromBody] ResendOtpRequest request)
-    {
-        try
-        {
-            var result = await _authService.ResendOtpAsync(request);
-            return Ok(result);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-    }
+    public async Task<ActionResult<PreAuthResponse>> ResendOtp([FromBody] ResendOtpRequest request) =>
+        Ok(await _authService.ResendOtpAsync(request));
 
     [Authorize]
     [HttpPost("register-face")]
     public async Task<IActionResult> RegisterFace([FromBody] RegisterFaceRequest request)
     {
-        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
-
-        try
-        {
-            await _authService.RegisterFaceAsync(userId, request);
-            return Ok(new { message = "Đăng ký mẫu khuôn mặt thành công" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id)) return Unauthorized();
+        await _authService.RegisterFaceAsync(id, request);
+        return Ok(new { message = "Đăng ký khuôn mặt thành công." });
     }
 
     [Authorize]
     [HttpGet("me")]
     public async Task<ActionResult<UserDto>> GetCurrentUser()
     {
-        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
-
-        var user = await _context.Users.FindAsync(userId);
-        if (user == null) return NotFound(new { message = "Người dùng không tồn tại" });
-
-        return Ok(new UserDto(
-            user.Id,
-            user.Username,
-            user.Email,
-            user.FullName,
-            user.StudentCode,
-            user.Role,
-            user.FaceEmbedding != null && user.FaceEmbedding.Length > 0
-        ));
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id)) return Unauthorized();
+        var user = await _context.Users.FindAsync(id);
+        if (user == null) return NotFound(new { message = "Người dùng không tồn tại." });
+        return Ok(new UserDto(user.Id, user.Username, user.Email, user.FullName,
+            user.StudentCode, user.Role, user.FaceEmbedding is { Length: > 0 }));
     }
 }

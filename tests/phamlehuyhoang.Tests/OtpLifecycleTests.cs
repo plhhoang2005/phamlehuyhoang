@@ -9,6 +9,7 @@ namespace phamlehuyhoang.Tests;
 
 public class MockEmailService : IEmailService
 {
+    public bool ShouldSucceed { get; set; } = true;
     public string? LastCodeSent { get; private set; }
     public string? LastEmailSent { get; private set; }
 
@@ -16,7 +17,7 @@ public class MockEmailService : IEmailService
     {
         LastCodeSent = otpCode;
         LastEmailSent = toEmail;
-        return Task.FromResult(true);
+        return Task.FromResult(ShouldSucceed);
     }
 }
 

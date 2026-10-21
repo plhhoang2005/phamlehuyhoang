@@ -48,7 +48,9 @@ public record UpdateCourseClassRequest(
     int MaxAbsencesAllowed,
     double DefaultLatitude,
     double DefaultLongitude,
-    double DefaultRadiusMeters
+    double DefaultRadiusMeters,
+    string? Code = null,
+    Guid? SubjectId = null
 );
 
 public record EnrollmentDto(
@@ -101,5 +103,6 @@ public record UpdateClassSessionRequest(
     double Latitude,
     double Longitude,
     double RadiusMeters,
-    bool IsCancelled
+    bool IsCancelled,
+    int? SessionNumber = null
 );

@@ -19,12 +19,12 @@ public record PreAuthResponse(
     string Ticket,
     string Message,
     int ExpiresInSeconds,
-    string? DevOtpCode = null
+    string Purpose = "Login"
 );
 
 public record VerifyOtpRequest(
     [Required] string Ticket,
-    [Required] [Length(6, 6)] string Code
+    [Required] [RegularExpression(@"^\d{6}$")] string Code
 );
 
 public record ResendOtpRequest(
@@ -52,5 +52,6 @@ public record UserDto(
     string FullName,
     string? StudentCode,
     string Role,
-    bool HasFaceRegistered
+    bool HasFaceRegistered,
+    bool IsActive = true
 );

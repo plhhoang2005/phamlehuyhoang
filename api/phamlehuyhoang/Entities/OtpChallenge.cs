@@ -18,8 +18,8 @@ public class OtpChallenge
     public User? User { get; set; }
 
     [Required]
-    [MaxLength(6)]
-    public string Code { get; set; } = string.Empty;
+    [MaxLength(64)]
+    public string CodeHash { get; set; } = string.Empty;
 
     [Required]
     [MaxLength(30)]
@@ -29,8 +29,10 @@ public class OtpChallenge
 
     public DateTime ExpiresAtUtc { get; set; }
 
+    [ConcurrencyCheck]
     public int AttemptCount { get; set; } = 0;
 
+    [ConcurrencyCheck]
     public bool IsUsed { get; set; } = false;
 
     public DateTime LastSentAtUtc { get; set; } = DateTime.UtcNow;

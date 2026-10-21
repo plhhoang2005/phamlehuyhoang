@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/attendance_models.dart';
 import '../../services/attendance_service.dart';
 import '../../theme/app_theme.dart';
+import 'forecast_simulator_screen.dart';
 
 class AttendanceForecastScreen extends StatefulWidget {
   final AttendanceForecastDto forecast;
@@ -40,6 +41,24 @@ class _AttendanceForecastScreenState extends State<AttendanceForecastScreen> {
       appBar: AppBar(
         title: const Text('Dự báo Chuyên cần'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.science_outlined),
+            tooltip: 'Demo Mô phỏng Kịch bản',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ForecastSimulatorScreen(
+                    initialN: f.n,
+                    initialM: f.m,
+                    initialA: f.a,
+                    initialL: f.l,
+                    subjectName: f.subjectName,
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Làm mới số liệu',
@@ -123,6 +142,36 @@ class _AttendanceForecastScreenState extends State<AttendanceForecastScreen> {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Nút mở Demo Mô phỏng
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0D47A1),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: const Icon(Icons.psychology_outlined),
+                    label: const Text(
+                      '🎮 MỞ DEMO MÔ PHỎNG & DỰ BÁO CẤM THI',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ForecastSimulatorScreen(
+                            initialN: f.n,
+                            initialM: f.m,
+                            initialA: f.a,
+                            initialL: f.l,
+                            subjectName: f.subjectName,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
 

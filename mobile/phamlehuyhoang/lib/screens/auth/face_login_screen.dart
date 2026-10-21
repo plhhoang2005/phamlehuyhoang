@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import 'otp_verification_screen.dart';
@@ -15,7 +17,7 @@ class FaceLoginScreen extends StatefulWidget {
 }
 
 class _FaceLoginScreenState extends State<FaceLoginScreen> {
-  final _usernameCtrl = TextEditingController(text: 'sinhvien1');
+  final _usernameCtrl = TextEditingController();
   final _picker = ImagePicker();
   XFile? _capturedImage;
   String? _imageBase64;
@@ -46,7 +48,10 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi camera: $e'), backgroundColor: AppTheme.danger),
+        SnackBar(
+          content: Text('Lỗi camera: $e'),
+          backgroundColor: AppTheme.danger,
+        ),
       );
     }
   }
@@ -55,14 +60,20 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
     final username = _usernameCtrl.text.trim();
     if (username.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập tên đăng nhập để đối chiếu khuôn mặt 1:1')),
+        const SnackBar(
+          content: Text(
+            'Vui lòng nhập tên đăng nhập để đối chiếu khuôn mặt 1:1',
+          ),
+        ),
       );
       return;
     }
 
     if (_imageBase64 == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chụp ảnh khuôn mặt trước khi bấm xác thực')),
+        const SnackBar(
+          content: Text('Vui lòng chụp ảnh khuôn mặt trước khi bấm xác thực'),
+        ),
       );
       return;
     }
@@ -81,7 +92,8 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
           builder: (_) => OtpVerificationScreen(
             ticket: res.ticket,
             message: res.message,
-            devOtpCode: res.devOtpCode,
+            isActivation: res.isActivation,
+            expiresInSeconds: res.expiresInSeconds,
             username: username,
           ),
         ),
@@ -143,14 +155,30 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
                   clipBehavior: Clip.antiAlias,
                   child: _capturedImage != null
                       ? (kIsWeb
-                          ? Image.network(_capturedImage!.path, fit: BoxFit.cover)
-                          : Image.file(File(_capturedImage!.path), fit: BoxFit.cover))
+                            ? Image.network(
+                                _capturedImage!.path,
+                                fit: BoxFit.cover,
+                              )
+                            : Image.file(
+                                File(_capturedImage!.path),
+                                fit: BoxFit.cover,
+                              ))
                       : const Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.face_unlock_rounded, size: 70, color: Colors.black45),
+                            Icon(
+                              Icons.face_unlock_rounded,
+                              size: 70,
+                              color: Colors.black45,
+                            ),
                             SizedBox(height: 8),
-                            Text('Chưa có ảnh mặt', style: TextStyle(color: Colors.black54, fontSize: 13)),
+                            Text(
+                              'Chưa có ảnh mặt',
+                              style: TextStyle(
+                                color: Colors.black54,
+                                fontSize: 13,
+                              ),
+                            ),
                           ],
                         ),
                 ),
@@ -159,18 +187,21 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
 
               // Nút chụp / chọn ảnh
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.camera_alt),
-                    label: const Text('Chụp Camera'),
-                    onPressed: () => _takePhoto(ImageSource.camera),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.camera_alt),
+                      label: const Text('Chụp Camera'),
+                      onPressed: () => _takePhoto(ImageSource.camera),
+                    ),
                   ),
                   const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.photo_library),
-                    label: const Text('Thư viện (AVD)'),
-                    onPressed: () => _takePhoto(ImageSource.gallery),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.photo_library),
+                      label: const Text('Thư viện ảnh'),
+                      onPressed: () => _takePhoto(ImageSource.gallery),
+                    ),
                   ),
                 ],
               ),
@@ -185,7 +216,10 @@ class _FaceLoginScreenState extends State<FaceLoginScreen> {
                     ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
                       )
                     : const Text('Xác thực Khuôn mặt & Nhận OTP'),
               ),

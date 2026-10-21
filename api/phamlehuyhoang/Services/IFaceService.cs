@@ -10,6 +10,6 @@ public record FaceProcessResult(
 public interface IFaceService
 {
     FaceProcessResult ExtractEmbeddingFromBase64(string imageBase64);
-    FaceProcessResult CompareFaces(byte[] registeredEmbedding, string candidateBase64, double threshold = 0.60);
+    FaceProcessResult CompareFaces(byte[] registeredEmbedding, string candidateBase64, double threshold = FaceService.DefaultThreshold);
     double ComputeCosineSimilarity(byte[] embeddingA, byte[] embeddingB);
 }

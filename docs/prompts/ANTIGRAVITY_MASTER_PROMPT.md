@@ -81,7 +81,7 @@ Luồng chính: admin tạo lớp → giảng viên mở buổi/phiên QR → si
 
 ## 5. Tài khoản, OTP và phiên đăng nhập
 
-- Đăng ký qua email, username duy nhất, email duy nhất; xác minh email nếu triển khai theo plan.
+- Đăng ký qua email, username duy nhất, email duy nhất; bắt buộc OTP kích hoạt trước khi đăng nhập. Kích hoạt không cấp JWT; mỗi lần đăng nhập vẫn cần OTP mới với mục đích riêng.
 - Đăng ký công khai luôn là Student; client không được tự chọn Admin/Lecturer.
 - Luồng bắt buộc: username + password → tạo challenge OTP → xác nhận OTP → mới cấp phiên truy cập API nghiệp vụ.
 - Đăng nhập khuôn mặt: username + ảnh hiện tại → đối chiếu mẫu của đúng tài khoản → OTP → cấp phiên. Dùng đối chiếu 1:1, không cần tìm người trên toàn bộ tập dữ liệu.
@@ -89,10 +89,10 @@ Luồng chính: admin tạo lớp → giảng viên mở buổi/phiên QR → si
 - OTP 6 chữ số tạo bằng nguồn ngẫu nhiên bảo mật; mặc định 5 phút, tối đa 5 lần thử, gửi lại sau 60 giây. Challenge có purpose/tài khoản, chỉ dùng một lần; gửi lại vô hiệu mã cũ; kiểm tra và tiêu thụ ở API một cách nhất quán.
 - Cần kiểm soát tần suất gửi/thử OTP và đối chiếu mặt; không để endpoint gửi email bị lạm dụng.
 - Dùng SMTP/provider thật có cấu hình; lấy secret từ env/user-secrets hoặc cấu hình hợp lệ sẵn có trong dự án. Không tìm bí mật ở dự án/tài khoản không liên quan.
-- Nếu chưa có thông tin gửi email, hoàn thành email adapter, cấu hình mẫu và test; chế độ dev phải ghi nhãn rõ. Không hiển thị OTP trên app rồi tuyên bố đã gửi email thật.
+- Nếu thiếu/lỗi SMTP, trả lỗi gửi email và không cấp challenge dùng được. Không có chế độ OTP dev, không trả mã về API, không ghi log mã và không tự điền OTP, kể cả Development.
 - Token/challenge trước OTP không được dùng gọi API nghiệp vụ.
 - Đăng xuất, hết hạn phiên và lưu token trên thiết bị bằng cơ chế thích hợp; không ghi token vào log.
-- Tạo bootstrap admin có kiểm soát; seed chỉ dùng dữ liệu giả cho Development, không mở endpoint nâng quyền công khai.
+- Tạo bootstrap admin từ cấu hình riêng có email thật; admin vẫn phải kích hoạt email và nhập OTP. Không tự seed tài khoản/lớp mẫu, không mở endpoint nâng quyền công khai.
 
 ## 6. QR + vị trí khi điểm danh
 
@@ -200,7 +200,7 @@ Không cần viết test cho mọi đoạn hiển thị đơn giản; tập trun
 - APK và đường dẫn file thực tế, kèm checksum nếu tạo được.
 - README hướng dẫn khởi chạy; .env/config mẫu; scripts phù hợp Windows/PowerShell.
 - Tài liệu cấu hình PostgreSQL, SMTP, face model và Conveyor/URL cho điện thoại.
-- Dữ liệu/tài khoản mẫu dành riêng môi trường Development, không chứa thông tin thật.
+- Hướng dẫn tạo tài khoản thật và cấu hình email; dữ liệu giả chỉ dùng bên trong bộ test, không có tài khoản mẫu hoặc nút điền nhanh trong app.
 - THIRD_PARTY_NOTICES.md, DECISIONS.md, DEMO.md, VERIFICATION.md, HANDOVER.md.
 - Kịch bản trình diễn đủ ba vai trò, QR/GPS, đăng nhập khuôn mặt + OTP và dự báo.
 - Tổng kết: đã làm gì; kiểm tra nào pass/fail/chưa chạy; APK ở đâu; commit/push tới đâu; blocker còn lại và bước khắc phục chính xác.

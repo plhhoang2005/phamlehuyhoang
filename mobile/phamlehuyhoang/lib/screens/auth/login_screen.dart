@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../services/api_client.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
@@ -15,8 +16,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _usernameCtrl = TextEditingController(text: 'sinhvien1');
-  final _passwordCtrl = TextEditingController(text: 'SinhVien@123');
+  final _usernameCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
 
@@ -44,7 +45,8 @@ class _LoginScreenState extends State<LoginScreen> {
           builder: (_) => OtpVerificationScreen(
             ticket: res.ticket,
             message: res.message,
-            devOtpCode: res.devOtpCode,
+            isActivation: res.isActivation,
+            expiresInSeconds: res.expiresInSeconds,
             username: _usernameCtrl.text.trim(),
           ),
         ),
@@ -52,21 +54,11 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
-          backgroundColor: AppTheme.danger,
-        ),
+        SnackBar(content: Text(e.toString()), backgroundColor: AppTheme.danger),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  void _fillDemoAccount(String username, String password) {
-    setState(() {
-      _usernameCtrl.text = username;
-      _passwordCtrl.text = password;
-    });
   }
 
   Future<void> _showServerConfigDialog() async {
@@ -74,59 +66,75 @@ class _LoginScreenState extends State<LoginScreen> {
     final urlCtrl = TextEditingController(text: currentUrl);
 
     if (!mounted) return;
+    String? urlError;
     await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cấu hình địa chỉ Server'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Nhập URL WebAPI (hỗ trợ Conveyor tunnel, LAN hoặc Emulator):',
-              style: TextStyle(fontSize: 13, color: Colors.black87),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: urlCtrl,
-              decoration: const InputDecoration(
-                hintText: 'https://xxx.conveyor.cloud hoặc http://10.0.2.2:5000',
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Cài đặt máy chủ'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Điện thoại thật: dùng URL Conveyor hoặc IP máy tính cùng Wi-Fi. 10.0.2.2 chỉ dùng cho máy ảo.',
+                style: TextStyle(fontSize: 13, color: Colors.black87),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: urlCtrl,
+                keyboardType: TextInputType.url,
+                autocorrect: false,
+                decoration: InputDecoration(
+                  hintText: 'https://ten-may-chu.conveyor.cloud',
+                  errorText: urlError,
+                  errorMaxLines: 3,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                children: [
+                  ActionChip(
+                    label: const Text('10.0.2.2:5000 (AVD)'),
+                    onPressed: () => urlCtrl.text = 'http://10.0.2.2:5000',
+                  ),
+                  ActionChip(
+                    label: const Text('USB (adb reverse)'),
+                    onPressed: () => urlCtrl.text = 'http://127.0.0.1:5000',
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Hủy'),
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              children: [
-                ActionChip(
-                  label: const Text('10.0.2.2:5000 (AVD)'),
-                  onPressed: () => urlCtrl.text = 'http://10.0.2.2:5000',
-                ),
-                ActionChip(
-                  label: const Text('127.0.0.1:5000 (Win)'),
-                  onPressed: () => urlCtrl.text = 'http://127.0.0.1:5000',
-                ),
-              ],
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await ApiClient.setBaseUrl(urlCtrl.text.trim());
+                } on ApiException catch (error) {
+                  if (ctx.mounted) {
+                    setDialogState(() => urlError = error.message);
+                  }
+                  return;
+                }
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Đã cập nhật URL: ${urlCtrl.text.trim()}'),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Lưu'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await ApiClient.setBaseUrl(urlCtrl.text.trim());
-              if (ctx.mounted) Navigator.pop(ctx);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Đã cập nhật URL: ${urlCtrl.text.trim()}')),
-                );
-              }
-            },
-            child: const Text('Lưu'),
-          ),
-        ],
       ),
     );
   }
@@ -139,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Cài đặt Server URL',
+            tooltip: 'Cài đặt máy chủ',
             onPressed: _showServerConfigDialog,
           ),
         ],
@@ -157,7 +165,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: CircleAvatar(
                     radius: 36,
                     backgroundColor: Color(0xFFE3F2FD),
-                    child: Icon(Icons.school_rounded, size: 42, color: AppTheme.primary),
+                    child: Icon(
+                      Icons.school_rounded,
+                      size: 42,
+                      color: AppTheme.primary,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -172,53 +184,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'phamlehuyhoang — Đồ án cá nhân',
+                  'Đăng nhập để theo dõi chuyên cần',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 13, color: Colors.black54),
                 ),
                 const SizedBox(height: 28),
-
-                // Tài khoản mẫu
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFCBD5E1)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Tài khoản thử nghiệm nhanh (chọn để điền):',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          ChoiceChip(
-                            label: const Text('Sinh viên 1'),
-                            selected: _usernameCtrl.text == 'sinhvien1',
-                            onSelected: (_) => _fillDemoAccount('sinhvien1', 'SinhVien@123'),
-                          ),
-                          ChoiceChip(
-                            label: const Text('Giảng viên'),
-                            selected: _usernameCtrl.text == 'giangvien1',
-                            onSelected: (_) => _fillDemoAccount('giangvien1', 'GiangVien@123'),
-                          ),
-                          ChoiceChip(
-                            label: const Text('Admin'),
-                            selected: _usernameCtrl.text == 'admin',
-                            onSelected: (_) => _fillDemoAccount('admin', 'Admin@123456'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
 
                 // Username
                 TextFormField(
@@ -227,7 +197,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     labelText: 'Tên đăng nhập',
                     prefixIcon: Icon(Icons.person_outline),
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Vui lòng nhập tên đăng nhập' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Vui lòng nhập tên đăng nhập'
+                      : null,
                 ),
                 const SizedBox(height: 16),
 
@@ -239,11 +211,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     labelText: 'Mật khẩu',
                     prefixIcon: const Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
-                  validator: (v) => (v == null || v.isEmpty) ? 'Vui lòng nhập mật khẩu' : null,
+                  validator: (v) => (v == null || v.isEmpty)
+                      ? 'Vui lòng nhập mật khẩu'
+                      : null,
                 ),
                 const SizedBox(height: 24),
 
@@ -254,20 +233,25 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
                         )
-                      : const Text('Đăng nhập (Bước 1/2)'),
+                      : const Text('Đăng nhập'),
                 ),
                 const SizedBox(height: 14),
 
                 // Face login button
                 OutlinedButton.icon(
                   icon: const Icon(Icons.face_retouching_natural),
-                  label: const Text('Đăng nhập bằng Khuôn mặt (Mục a)'),
+                  label: const Text('Đăng nhập bằng khuôn mặt'),
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const FaceLoginScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const FaceLoginScreen(),
+                      ),
                     );
                   },
                 ),
@@ -282,7 +266,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const RegisterScreen(),
+                          ),
                         );
                       },
                       child: const Text(

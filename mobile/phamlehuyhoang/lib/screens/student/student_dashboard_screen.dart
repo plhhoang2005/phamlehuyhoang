@@ -4,8 +4,10 @@ import '../../models/auth_models.dart';
 import '../../services/attendance_service.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/current_location_card.dart';
 import '../auth/login_screen.dart';
 import 'attendance_forecast_screen.dart';
+import 'forecast_simulator_screen.dart';
 import 'qr_scanner_screen.dart';
 import 'register_face_screen.dart';
 import 'student_history_screen.dart';
@@ -141,6 +143,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     ),
                     const SizedBox(height: 12),
 
+                    // Vị trí người dùng hiện tại + Google Maps
+                    const CurrentLocationCard(
+                      title: 'Vị trí hiện tại của sinh viên',
+                    ),
+                    const SizedBox(height: 12),
+
                     // Quick QR Check-in Banner
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -263,6 +271,30 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         _loadData();
                       },
                     ),
+                    const SizedBox(height: 12),
+
+                    // Demo Simulator card
+                    _buildActionCard(
+                      icon: Icons.psychology_outlined,
+                      color: const Color(0xFF0284C7),
+                      title: '🎮 Demo Động cơ Dự báo Cấm thi (Mục c)',
+                      subtitle: 'Thử nghiệm kịch bản What-If: An toàn, Sát nút, Hết lượt & Cấm thi',
+                      onTap: () {
+                        final f = _forecasts.isNotEmpty ? _forecasts.first : null;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ForecastSimulatorScreen(
+                              initialN: f?.n ?? 15,
+                              initialM: f?.m ?? 8,
+                              initialA: f?.a ?? 2,
+                              initialL: f?.l ?? 3,
+                              subjectName: f?.subjectName,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
 
                     const SizedBox(height: 20),
                     const Text(
@@ -331,7 +363,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
-                                        Text('Số buổi đã vắng: ${f.a} / ${f.l} tối đa'),
+                                        Expanded(
+                                          child: Text('Số buổi đã vắng: ${f.a} / ${f.l} tối đa'),
+                                        ),
                                         Text(
                                           f.currentPercentage != null
                                               ? '${f.currentPercentage!.toStringAsFixed(1)}%'

@@ -4,7 +4,10 @@ import '../../models/class_models.dart';
 import '../../services/attendance_service.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/current_location_card.dart';
 import '../auth/login_screen.dart';
+import '../student/forecast_simulator_screen.dart';
+import '../student/register_face_screen.dart';
 import 'lecturer_class_sessions_screen.dart';
 
 class LecturerDashboardScreen extends StatefulWidget {
@@ -130,6 +133,54 @@ class _LecturerDashboardScreenState extends State<LecturerDashboardScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 12),
+
+                    // Vị trí hiện tại của Giảng viên + Google Maps
+                    const CurrentLocationCard(
+                      title: 'Vị trí hiện tại của giảng viên',
+                    ),
+                    const SizedBox(height: 12),
+
+                    Card(
+                      child: ListTile(
+                        leading: const CircleAvatar(
+                          backgroundColor: Color(0xFFF3E5F5),
+                          child: Icon(Icons.face_retouching_natural, color: Color(0xFF7B1FA2)),
+                        ),
+                        title: const Text('Đăng ký Mẫu Khuôn mặt (Mục a)',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        subtitle: const Text('Chụp mẫu mặt của bạn để đăng nhập nhanh cho Giảng viên',
+                            style: TextStyle(fontSize: 12)),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const RegisterFaceScreen()),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    Card(
+                      child: ListTile(
+                        leading: const CircleAvatar(
+                          backgroundColor: Color(0xFFE0F2FE),
+                          child: Icon(Icons.psychology_outlined, color: Color(0xFF0284C7)),
+                        ),
+                        title: const Text('Demo Động cơ Dự báo Cấm thi (Mục c)',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        subtitle: const Text('Thử nghiệm các kịch bản What-If: An toàn, Sát nút, Hết lượt & Cấm thi',
+                            style: TextStyle(fontSize: 12)),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const ForecastSimulatorScreen()),
+                          );
+                        },
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     const Text(
                       'Các lớp học phần được phân công giảng dạy:',
@@ -179,13 +230,48 @@ class _LecturerDashboardScreenState extends State<LecturerDashboardScreen> {
                                     Text('Mã lớp: ${c.code} (${c.subjectCode})',
                                         style: const TextStyle(color: Colors.black54)),
                                     const Divider(height: 20),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 6,
+                                      crossAxisAlignment: WrapCrossAlignment.center,
                                       children: [
-                                        Text('Tổng buổi: ${c.totalSessions} buổi'),
-                                        Text('Tối đa vắng: ${c.maxAbsencesAllowed} buổi'),
-                                        Text('${c.enrolledCount} sinh viên',
-                                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary)),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withAlpha(12),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            'Tổng: ${c.totalSessions} buổi',
+                                            style: const TextStyle(fontSize: 12, color: Colors.black87),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withAlpha(12),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            'Tối đa vắng: ${c.maxAbsencesAllowed} buổi',
+                                            style: const TextStyle(fontSize: 12, color: Colors.black87),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: AppTheme.primary.withAlpha(25),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            '${c.enrolledCount} sinh viên',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                              color: AppTheme.primary,
+                                            ),
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ],

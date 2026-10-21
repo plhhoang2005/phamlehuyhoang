@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/attendance_models.dart';
 import '../../models/class_models.dart';
 import '../../services/attendance_service.dart';
+import '../../services/location_service.dart';
 import '../../theme/app_theme.dart';
 
 class SessionAttendanceDetailScreen extends StatefulWidget {
@@ -17,12 +18,23 @@ class _SessionAttendanceDetailScreenState extends State<SessionAttendanceDetailS
   List<AttendanceRecordDto> _records = [];
   bool _isLoading = true;
   bool _isFinalized = false;
+  String? _roomAddress;
 
   @override
   void initState() {
     super.initState();
     _isFinalized = widget.session.isFinalized;
     _loadRecords();
+    _resolveAddress();
+  }
+
+  void _resolveAddress() {
+    LocationService.getAddressFromCoordinates(
+      widget.session.latitude,
+      widget.session.longitude,
+    ).then((addr) {
+      if (mounted) setState(() => _roomAddress = addr);
+    });
   }
 
   Future<void> _loadRecords() async {
@@ -192,6 +204,54 @@ class _SessionAttendanceDetailScreenState extends State<SessionAttendanceDetailS
                           label: const Text('Chốt buổi học', style: TextStyle(fontSize: 13)),
                           onPressed: _handleFinalize,
                         ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF8FAFC),
+                    border: Border(
+                      top: BorderSide(color: Color(0xFFE2E8F0)),
+                      bottom: BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.location_on, size: 16, color: AppTheme.danger),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${widget.session.roomName} • ${_roomAddress ?? "Tọa độ: ${widget.session.latitude}, ${widget.session.longitude}"} (Bán kính: ${widget.session.radiusMeters.toStringAsFixed(0)}m)',
+                          style: const TextStyle(fontSize: 12, color: Colors.black87),
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () => LocationService.openGoogleMaps(
+                          widget.session.latitude,
+                          widget.session.longitude,
+                          label: widget.session.roomName,
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.map, size: 14, color: AppTheme.primary),
+                              SizedBox(width: 4),
+                              Text(
+                                'Bản đồ',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppTheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),

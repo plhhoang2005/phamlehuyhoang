@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import 'otp_verification_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -45,7 +47,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await AuthService.register(
+      final response = await AuthService.register(
         username: _usernameCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
         fullName: _fullNameCtrl.text.trim(),
@@ -54,20 +56,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đăng ký tài khoản thành công! Vui lòng đăng nhập.'),
-          backgroundColor: AppTheme.success,
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OtpVerificationScreen(
+            ticket: response.ticket,
+            message: response.message,
+            username: _usernameCtrl.text.trim(),
+            isActivation: true,
+            expiresInSeconds: response.expiresInSeconds,
+          ),
         ),
       );
-      Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
-          backgroundColor: AppTheme.danger,
-        ),
+        SnackBar(content: Text(e.toString()), backgroundColor: AppTheme.danger),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -92,7 +96,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Lưu ý: Đăng ký công khai luôn được cấp vai trò Sinh viên (Student).',
+                  'Sử dụng email của bạn để nhận mã kích hoạt tài khoản.',
                   style: TextStyle(fontSize: 13, color: Colors.black54),
                 ),
                 const SizedBox(height: 20),
@@ -103,7 +107,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     labelText: 'Tên đăng nhập *',
                     prefixIcon: Icon(Icons.person_outline),
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Vui lòng nhập tên đăng nhập' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Vui lòng nhập tên đăng nhập'
+                      : null,
                 ),
                 const SizedBox(height: 14),
 
@@ -114,7 +120,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     labelText: 'Email * (nhận mã OTP)',
                     prefixIcon: Icon(Icons.email_outlined),
                   ),
-                  validator: (v) => (v == null || !v.contains('@')) ? 'Email không hợp lệ' : null,
+                  validator: (v) => (v == null || !v.contains('@'))
+                      ? 'Email không hợp lệ'
+                      : null,
                 ),
                 const SizedBox(height: 14),
 
@@ -124,7 +132,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     labelText: 'Họ và tên *',
                     prefixIcon: Icon(Icons.badge_outlined),
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Vui lòng nhập họ và tên' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Vui lòng nhập họ và tên'
+                      : null,
                 ),
                 const SizedBox(height: 14),
 
@@ -144,7 +154,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     labelText: 'Mật khẩu * (ít nhất 6 ký tự)',
                     prefixIcon: Icon(Icons.lock_outline),
                   ),
-                  validator: (v) => (v == null || v.length < 6) ? 'Mật khẩu phải từ 6 ký tự' : null,
+                  validator: (v) => (v == null || v.length < 6)
+                      ? 'Mật khẩu phải từ 6 ký tự'
+                      : null,
                 ),
                 const SizedBox(height: 14),
 
@@ -155,7 +167,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     labelText: 'Xác nhận mật khẩu *',
                     prefixIcon: Icon(Icons.lock_reset_outlined),
                   ),
-                  validator: (v) => (v == null || v.isEmpty) ? 'Vui lòng xác nhận mật khẩu' : null,
+                  validator: (v) => (v == null || v.isEmpty)
+                      ? 'Vui lòng xác nhận mật khẩu'
+                      : null,
                 ),
                 const SizedBox(height: 24),
 
@@ -165,7 +179,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
                         )
                       : const Text('Hoàn tất đăng ký'),
                 ),

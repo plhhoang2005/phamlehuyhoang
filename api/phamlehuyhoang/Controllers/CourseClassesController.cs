@@ -6,6 +6,7 @@ using phamlehuyhoang.Data;
 using phamlehuyhoang.DTOs;
 using phamlehuyhoang.Entities;
 using phamlehuyhoang.Enums;
+using phamlehuyhoang.Services;
 
 namespace phamlehuyhoang.Controllers;
 
@@ -26,7 +27,8 @@ public class CourseClassesController : ControllerBase
     {
         var role = User.FindFirstValue(ClaimTypes.Role);
         var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        Guid.TryParse(userIdStr, out var userId);
+        if (!Guid.TryParse(userIdStr, out var userId)) return Unauthorized();
+        if (role != UserRole.Admin && role != UserRole.Lecturer && role != UserRole.Student) return Forbid();
 
         var query = _context.CourseClasses
             .Include(c => c.Subject)
@@ -76,6 +78,7 @@ public class CourseClassesController : ControllerBase
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (c == null) return NotFound(new { message = "Lớp học phần không tồn tại" });
+        if (!await ResourceAuthorization.CanReadClassAsync(_context, User, id)) return Forbid();
 
         return Ok(new CourseClassDto(
             c.Id,
@@ -98,6 +101,10 @@ public class CourseClassesController : ControllerBase
     [Authorize(Roles = UserRole.Admin)]
     public async Task<ActionResult<CourseClassDto>> CreateClass([FromBody] CreateCourseClassRequest request)
     {
+        if (string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 50 ||
+            !await ValidClassSettings(request.LecturerId, request.TotalSessions, request.MaxAbsencesAllowed,
+                request.DefaultLatitude, request.DefaultLongitude, request.DefaultRadiusMeters))
+            return BadRequest(new { message = "Thông tin lớp, giảng viên, số buổi hoặc vị trí không hợp lệ" });
         var cleanCode = request.Code.Trim().ToUpperInvariant();
         if (await _context.CourseClasses.AnyAsync(c => c.Code == cleanCode))
         {
@@ -113,11 +120,11 @@ public class CourseClassesController : ControllerBase
             Code = cleanCode,
             SubjectId = request.SubjectId,
             LecturerId = request.LecturerId,
-            TotalSessions = request.TotalSessions > 0 ? request.TotalSessions : 15,
-            MaxAbsencesAllowed = request.MaxAbsencesAllowed >= 0 ? request.MaxAbsencesAllowed : 3,
+            TotalSessions = request.TotalSessions,
+            MaxAbsencesAllowed = request.MaxAbsencesAllowed,
             DefaultLatitude = request.DefaultLatitude,
             DefaultLongitude = request.DefaultLongitude,
-            DefaultRadiusMeters = request.DefaultRadiusMeters > 0 ? request.DefaultRadiusMeters : 100.0,
+            DefaultRadiusMeters = request.DefaultRadiusMeters,
             CreatedAtUtc = DateTime.UtcNow
         };
 
@@ -148,6 +155,20 @@ public class CourseClassesController : ControllerBase
         var courseClass = await _context.CourseClasses.FindAsync(id);
         if (courseClass == null) return NotFound(new { message = "Lớp học phần không tồn tại" });
 
+        if (!await ValidClassSettings(request.LecturerId, request.TotalSessions, request.MaxAbsencesAllowed,
+                request.DefaultLatitude, request.DefaultLongitude, request.DefaultRadiusMeters) ||
+            await _context.ClassSessions.AnyAsync(s => s.CourseClassId == id && s.SessionNumber > request.TotalSessions))
+            return BadRequest(new { message = "Giảng viên, số buổi hoặc vị trí không hợp lệ; số buổi phải bao gồm các buổi đã tạo" });
+
+        var code = request.Code?.Trim().ToUpperInvariant() ?? courseClass.Code;
+        var subjectId = request.SubjectId ?? courseClass.SubjectId;
+        if (string.IsNullOrWhiteSpace(code) || code.Length > 50 ||
+            await _context.CourseClasses.AnyAsync(c => c.Id != id && c.Code == code) ||
+            !await _context.Subjects.AnyAsync(s => s.Id == subjectId))
+            return BadRequest(new { message = "Mã lớp đã tồn tại hoặc môn học không hợp lệ" });
+
+        courseClass.Code = code;
+        courseClass.SubjectId = subjectId;
         courseClass.LecturerId = request.LecturerId;
         courseClass.TotalSessions = request.TotalSessions;
         courseClass.MaxAbsencesAllowed = request.MaxAbsencesAllowed;
@@ -159,12 +180,45 @@ public class CourseClassesController : ControllerBase
         return Ok(new { message = "Cập nhật lớp học phần thành công" });
     }
 
+    private async Task<bool> ValidClassSettings(Guid? lecturerId, int total, int absences, double latitude, double longitude, double radius) =>
+        total > 0 && absences >= 0 && absences <= total && ResourceAuthorization.ValidLocation(latitude, longitude, radius) &&
+        (!lecturerId.HasValue || await _context.Users.AnyAsync(u => u.Id == lecturerId && u.Role == UserRole.Lecturer && u.IsActive));
+
+    [HttpDelete("{id}")]
+    [Authorize(Roles = UserRole.Admin)]
+    public async Task<IActionResult> DeleteClass(Guid id)
+    {
+        await using var transaction = _context.Database.IsRelational()
+            ? await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable) : null;
+        var courseClass = await _context.CourseClasses.FindAsync(id);
+        if (courseClass == null) return NotFound(new { message = "Lớp học phần không tồn tại" });
+        var sessions = await _context.ClassSessions.Where(s => s.CourseClassId == id).ToListAsync();
+        var sessionIds = sessions.Select(s => s.Id).ToList();
+        if (sessions.Any(s => s.IsFinalized) || await _context.AttendanceRecords.AnyAsync(r => sessionIds.Contains(r.ClassSessionId)))
+            return Conflict(new { message = "Không thể xóa lớp đã có lịch sử điểm danh hoặc buổi học đã chốt. Dữ liệu được giữ để bảo toàn lịch sử." });
+        _context.AttendanceQrSessions.RemoveRange(await _context.AttendanceQrSessions.Where(q => sessionIds.Contains(q.ClassSessionId)).ToListAsync());
+        _context.ClassEnrollments.RemoveRange(await _context.ClassEnrollments.Where(e => e.CourseClassId == id).ToListAsync());
+        _context.ClassSessions.RemoveRange(sessions);
+        _context.CourseClasses.Remove(courseClass);
+        await _context.SaveChangesAsync();
+        if (transaction != null) await transaction.CommitAsync();
+        return Ok(new { message = "Đã xóa lớp học phần thành công" });
+    }
+
     [HttpGet("{id}/students")]
     public async Task<ActionResult<List<EnrollmentDto>>> GetEnrolledStudents(Guid id)
     {
-        var enrollments = await _context.ClassEnrollments
+        if (!await _context.CourseClasses.AnyAsync(c => c.Id == id)) return NotFound(new { message = "Lớp học phần không tồn tại" });
+        if (!await ResourceAuthorization.CanReadClassAsync(_context, User, id)) return Forbid();
+        var query = _context.ClassEnrollments
             .Include(e => e.Student)
-            .Where(e => e.CourseClassId == id)
+            .Where(e => e.CourseClassId == id);
+        if (User.IsInRole(UserRole.Student))
+        {
+            var studentId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            query = query.Where(e => e.StudentId == studentId);
+        }
+        var enrollments = await query
             .OrderBy(e => e.Student != null ? e.Student.FullName : "")
             .Select(e => new EnrollmentDto(
                 e.Id,
@@ -187,7 +241,7 @@ public class CourseClassesController : ControllerBase
         if (courseClass == null) return NotFound(new { message = "Lớp học phần không tồn tại" });
 
         var student = await _context.Users.FindAsync(request.StudentId);
-        if (student == null || student.Role != UserRole.Student)
+        if (student == null || student.Role != UserRole.Student || !student.IsActive)
         {
             return BadRequest(new { message = "Sinh viên không hợp lệ" });
         }

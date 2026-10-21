@@ -14,7 +14,8 @@
 - **Backend WebAPI:** ASP.NET Core WebAPI (.NET 10, chạy bằng Kestrel / Visual Studio).
 - **Cơ sở dữ liệu:** PostgreSQL 18 thông qua Entity Framework Core 10 và Npgsql.
 - **Tunnel truy cập từ xa:** Hỗ trợ Microsoft Visual Studio / Conveyor Cloud để thiết bị di động truy cập trực tiếp API qua mạng Internet/4G.
-- **Bảo mật & Xác thực:** Mật khẩu băm PBKDF2 SHA-256 (ASP.NET Identity standard), xác thực 2 lớp bắt buộc (Mật khẩu / Khuôn mặt + OTP 6 chữ số), JWT Bearer Token, kiểm soát quyền theo vai trò và đối tượng.
+- **Cloudflare Quick Tunnel:** Chạy `scripts/Start-Cloudflare.ps1` để mở URL HTTPS tạm, dùng được trên điện thoại và máy người kiểm tra. Xem [hướng dẫn Cloudflare](docs/CLOUDFLARE_QUICK_TUNNEL.md).
+- **Bảo mật & Xác thực:** Mật khẩu băm PBKDF2 bằng ASP.NET Identity, OTP email bắt buộc, JWT có phiên bản quyền; kiểm soát theo vai trò và lớp học.
 
 ---
 
@@ -22,8 +23,8 @@
 
 ### 2.1. Đăng nhập bằng khuôn mặt (Mục a)
 - Thu nhận ảnh mặt qua Camera / Thư viện.
-- Trích xuất vector đặc trưng khuôn mặt (Embedding 128 chiều chuẩn hóa L2).
-- Đối chiếu 1:1 với mẫu đã lưu của tài khoản bằng độ tương đồng Cosine (ngưỡng $\ge 0.60$ theo chuẩn OpenCV SFace).
+- YuNet phát hiện một khuôn mặt; SFace trích xuất vector 128 chiều chuẩn hóa L2.
+- Đối chiếu 1:1 bằng cosine, ngưỡng mặc định 0.363. Cài mô hình bằng `scripts/Initialize-FaceModels.ps1`; xem [thiết lập khuôn mặt](docs/FACE_SETUP.md). Mẫu khuôn mặt cũ cần đăng ký lại. Chưa có liveness.
 - Kết hợp OTP 2 lớp trước khi cấp phiên đăng nhập; có fallback sang đăng nhập mật khẩu khi camera/nhận diện gặp sự cố.
 
 ### 2.2. Vị trí khi điểm danh (Mục b)
@@ -33,7 +34,7 @@
 
 ### 2.3. QR theo buổi học (Mục e)
 - Giảng viên mở phiên điểm danh cho buổi học thuộc lớp được phân công.
-- Sinh mã QR challenge ngẫu nhiên với thời hạn 60 giây, cho phép làm mới tự động.
+- Sinh mã QR ngẫu nhiên với thời hạn 60 giây; giảng viên dùng nút làm mới để cấp mã mới.
 - Đóng phiên lập tức vô hiệu hóa mã QR.
 - Ràng buộc cơ sở dữ liệu UNIQUE `(ClassSessionId, StudentId)` chống triệt để việc điểm danh trùng lặp hoặc race-condition.
 
@@ -50,14 +51,15 @@
 
 ---
 
-## 3. Danh sách Tài khoản Kiểm thử Môi trường Phát triển
+## 3. Tài khoản và email xác thực
 
-| Vai trò | Tên đăng nhập | Mật khẩu | Mô tả / Chức năng |
-|---|---|---|---|
-| **Admin** | `admin` | `Admin@123456` | Quản trị tài khoản, môn học, lớp học phần, phân công |
-| **Giảng viên** | `giangvien1` | `GiangVien@123` | TS. Nguyễn Văn Hướng — Mở QR, chốt kết quả, điều chỉnh điểm danh |
-| **Sinh viên 1** | `sinhvien1` | `SinhVien@123` | Phạm Lê Huy Hoàng (MSSV 23010001) — Demo QR, GPS, Mặt & Dự báo |
-| **Sinh viên 2** | `sinhvien2` | `SinhVien@123` | Trần Thị Mai (MSSV 23010002) — Sinh viên thứ hai trong lớp |
+Ứng dụng không cung cấp tài khoản đăng nhập nhanh, OTP dev hoặc tự điền mã. Đăng ký bằng email thật → nhập OTP kích hoạt → đăng nhập bằng mật khẩu/khuôn mặt → nhập OTP đăng nhập mới.
+
+Cần cấu hình tài khoản SMTP gửi thư trước khi sử dụng. Chạy `scripts/Configure-Email.ps1`, khởi động lại API và làm theo [hướng dẫn email](docs/EMAIL_SETUP.md). Thiếu/lỗi SMTP trả HTTP 503, không có cơ chế bỏ qua xác thực.
+
+API không tự nạp tài khoản/lớp mẫu. Tài khoản, lớp và lịch sử đã có không bị xóa; tài khoản cũ cần xác minh email.
+
+Để tạo quản trị viên dùng email thật, chạy `scripts/Configure-Admin.ps1` rồi khởi động lại API. Không ghi đè admin cũ hoặc tự xác minh email mẫu. Kiểm tra cấu hình bằng `scripts/Test-LocalReadiness.ps1`. Xem [kết quả kiểm chứng](docs/VERIFICATION.md) và [các lỗi chính đã sửa](docs/MAJOR_FIX_PROGRESS.md).
 
 ---
 

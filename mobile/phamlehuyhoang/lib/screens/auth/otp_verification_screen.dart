@@ -1,7 +1,11 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import 'login_screen.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../lecturer/lecturer_dashboard_screen.dart';
 import '../student/student_dashboard_screen.dart';
@@ -9,14 +13,16 @@ import '../student/student_dashboard_screen.dart';
 class OtpVerificationScreen extends StatefulWidget {
   final String ticket;
   final String message;
-  final String? devOtpCode;
+  final bool isActivation;
+  final int expiresInSeconds;
   final String username;
 
   const OtpVerificationScreen({
     super.key,
     required this.ticket,
     required this.message,
-    this.devOtpCode,
+    this.isActivation = false,
+    this.expiresInSeconds = 300,
     required this.username,
   });
 
@@ -26,7 +32,6 @@ class OtpVerificationScreen extends StatefulWidget {
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   late String _currentTicket;
-  String? _currentDevOtp;
   final _otpCtrl = TextEditingController();
 
   int _expireSeconds = 300; // 5 phút
@@ -39,10 +44,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   void initState() {
     super.initState();
     _currentTicket = widget.ticket;
-    _currentDevOtp = widget.devOtpCode;
-    if (_currentDevOtp != null) {
-      _otpCtrl.text = _currentDevOtp!;
-    }
+    _expireSeconds = widget.expiresInSeconds;
     _startTimers();
   }
 
@@ -77,7 +79,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   Future<void> _handleVerify() async {
     final code = _otpCtrl.text.trim();
-    if (code.length != 6) {
+    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng nhập đủ 6 chữ số OTP')),
       );
@@ -86,6 +88,21 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
     setState(() => _isLoading = true);
     try {
+      if (widget.isActivation) {
+        await AuthService.verifyEmail(ticket: _currentTicket, code: code);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tài khoản đã được kích hoạt. Vui lòng đăng nhập.'),
+          ),
+        );
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+        return;
+      }
       final res = await AuthService.verifyOtp(
         ticket: _currentTicket,
         code: code,
@@ -110,10 +127,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
-          backgroundColor: AppTheme.danger,
-        ),
+        SnackBar(content: Text(e.toString()), backgroundColor: AppTheme.danger),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -126,31 +140,23 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     setState(() => _isLoading = true);
     try {
       final res = await AuthService.resendOtp(ticket: _currentTicket);
+      if (!mounted) return;
       setState(() {
         _currentTicket = res.ticket;
-        _currentDevOtp = res.devOtpCode;
-        if (_currentDevOtp != null) {
-          _otpCtrl.text = _currentDevOtp!;
-        }
-        _expireSeconds = 300;
+        _otpCtrl.clear();
+        _expireSeconds = res.expiresInSeconds;
         _resendCooldown = 60;
       });
       _startTimers();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(res.message),
-          backgroundColor: AppTheme.success,
-        ),
+        SnackBar(content: Text(res.message), backgroundColor: AppTheme.success),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
-          backgroundColor: AppTheme.danger,
-        ),
+        SnackBar(content: Text(e.toString()), backgroundColor: AppTheme.danger),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -166,7 +172,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Xác thực OTP (Bước 2/2)')),
+      appBar: AppBar(
+        title: Text(
+          widget.isActivation ? 'Kích hoạt tài khoản' : 'Xác thực đăng nhập',
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
@@ -178,7 +188,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 child: CircleAvatar(
                   radius: 36,
                   backgroundColor: Color(0xFFE8F5E9),
-                  child: Icon(Icons.mark_email_read_outlined, size: 40, color: AppTheme.success),
+                  child: Icon(
+                    Icons.mark_email_read_outlined,
+                    size: 40,
+                    color: AppTheme.success,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -195,38 +209,13 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               ),
               const SizedBox(height: 12),
 
-              // Dev OTP Code chip
-              if (_currentDevOtp != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3E0),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.warning),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.developer_mode, color: AppTheme.warning, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Mã Dev/Test: $_currentDevOtp (Tự điền)',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFFE65100),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
               const SizedBox(height: 20),
 
               // Input field
               TextField(
                 controller: _otpCtrl,
                 keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 textAlign: TextAlign.center,
                 maxLength: 6,
                 style: const TextStyle(
@@ -246,12 +235,18 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.timer_outlined, size: 16, color: Colors.black54),
+                  const Icon(
+                    Icons.timer_outlined,
+                    size: 16,
+                    color: Colors.black54,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     'Mã hết hạn sau: ${_formatTimer(_expireSeconds)}',
                     style: TextStyle(
-                      color: _expireSeconds < 60 ? AppTheme.danger : Colors.black54,
+                      color: _expireSeconds < 60
+                          ? AppTheme.danger
+                          : Colors.black54,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -261,14 +256,23 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               const SizedBox(height: 24),
 
               ElevatedButton(
-                onPressed: (_isLoading || _expireSeconds <= 0) ? null : _handleVerify,
+                onPressed: (_isLoading || _expireSeconds <= 0)
+                    ? null
+                    : _handleVerify,
                 child: _isLoading
                     ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
                       )
-                    : const Text('Xác thực & Vào ứng dụng'),
+                    : Text(
+                        widget.isActivation
+                            ? 'Kích hoạt tài khoản'
+                            : 'Xác thực và đăng nhập',
+                      ),
               ),
 
               const SizedBox(height: 16),
@@ -280,7 +284,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       ? 'Gửi lại mã ($_resendCooldown s)'
                       : 'Gửi lại mã OTP mới',
                 ),
-                onPressed: (_resendCooldown > 0 || _isLoading) ? null : _handleResend,
+                onPressed: (_resendCooldown > 0 || _isLoading)
+                    ? null
+                    : _handleResend,
               ),
             ],
           ),

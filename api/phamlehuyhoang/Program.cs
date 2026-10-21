@@ -18,11 +18,16 @@ if (builder.Environment.IsDevelopment())
     }
 }
 builder.Configuration.AddEnvironmentVariables();
+foreach (var name in new[] { "Host", "Port", "User", "Password" })
+{
+    var value = Environment.GetEnvironmentVariable("SMTP_" + name.ToUpperInvariant());
+    if (!string.IsNullOrWhiteSpace(value)) builder.Configuration["Smtp:" + name] = value;
+}
 
 // 1. Cấu hình Npgsql PostgreSQL
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? Environment.GetEnvironmentVariable("DATABASE_CONNECTION_STRING")
-    ?? "Host=127.0.0.1;Port=54321;Database=phamlehuyhoang;Username=phamlehuyhoang_app;Password=iZzE6paYLNiMTQ5cNx4Me3sNbQ4kyPWRUbtgXZJiDzE=";
+    ?? throw new InvalidOperationException("Chưa cấu hình kết nối PostgreSQL.");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
@@ -37,7 +42,8 @@ builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
 // 3. Cấu hình JWT Bearer
-var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "phamlehuyhoang_SecureJwtSecretKey_2026_DotNet10_AdvancedTokenAuth_123456";
+var jwtSecret = builder.Configuration["Jwt:Secret"]
+    ?? throw new InvalidOperationException("Chưa cấu hình khóa xác thực Jwt:Secret.");
 var key = Encoding.UTF8.GetBytes(jwtSecret);
 
 builder.Services.AddAuthentication(options =>
@@ -49,6 +55,19 @@ builder.Services.AddAuthentication(options =>
 {
     options.RequireHttpsMetadata = false;
     options.SaveToken = true;
+    options.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = async ctx =>
+        {
+            var id = ctx.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var db = ctx.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+            var user = Guid.TryParse(id, out var userId)
+                ? await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId)
+                : null;
+            if (!AccountTokenValidator.MatchesCurrentAccount(user, ctx.Principal))
+                ctx.Fail("Tài khoản hoặc quyền truy cập đã thay đổi. Vui lòng đăng nhập lại.");
+        }
+    };
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
@@ -93,7 +112,7 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
-// 6. Tự động Migrate và Seed dữ liệu mẫu khi khởi động
+// 6. Migrate dữ liệu và khởi tạo quản trị viên thật nếu được cấu hình.
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -101,12 +120,13 @@ using (var scope = app.Services.CreateScope())
     try
     {
         logger.LogInformation("Đang kiểm tra và khởi tạo cơ sở dữ liệu PostgreSQL...");
-        await DbInitializer.SeedAsync(context);
-        logger.LogInformation("Khởi tạo và Seed cơ sở dữ liệu phamlehuyhoang thành công.");
+        await DbInitializer.InitializeAsync(context, builder.Configuration);
+        logger.LogInformation("Cơ sở dữ liệu phamlehuyhoang đã sẵn sàng.");
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Lỗi xảy ra trong quá trình Migrate/Seed cơ sở dữ liệu.");
+        logger.LogError(ex, "Lỗi xảy ra trong quá trình khởi tạo cơ sở dữ liệu.");
+        throw;
     }
 }
 

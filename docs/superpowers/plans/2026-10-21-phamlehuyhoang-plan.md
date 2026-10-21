@@ -2,6 +2,8 @@
 
 Ngày cập nhật: 21/10/2026.
 
+Tiến độ sửa các lỗi lớn đã được người dùng duyệt: [MAJOR_FIX_PROGRESS.md](../../MAJOR_FIX_PROGRESS.md). Kết quả kiểm chứng hiện tại: [VERIFICATION.md](../../VERIFICATION.md). Các ô yêu cầu dưới đây không thay thế bằng chứng kiểm thử Gmail/thiết bị thật.
+
 ## 1. Mục tiêu và phạm vi đã chốt
 
 Xây dựng ứng dụng di động điểm danh sinh viên theo hình thức **bài tập cá nhân** của Phạm Lê Huy Hoàng. Công nghệ đã chốt: Flutter cho mobile, PostgreSQL cho dữ liệu; ASP.NET Core WebAPI được chọn để triển khai với Conveyor trong môi trường Visual Studio. Conveyor cung cấp đường truy cập tới API, không thay thế mã nguồn WebAPI.
@@ -174,7 +176,7 @@ Quy tắc dữ liệu: không thêm trùng sinh viên vào lớp; không tạo h
 - Cách tính điểm vì các số ghi trong đề hiện cộng thành 11.
 - Yêu cầu repo public/private khi nộp bài; hiện repo là Private.
 
-Trạng thái ở lần cập nhật kế hoạch: chưa triển khai mã nguồn. Theo chỉ đạo mới tại mục 9, các điểm chưa có xác nhận không chặn việc code; dùng giả định được ghi lại.
+Mã nguồn đã được triển khai; trạng thái kiểm chứng thực tế xem `docs/VERIFICATION.md`. Theo chỉ đạo tại mục 9 và 10, các điểm chưa có xác nhận không chặn việc code; dùng giả định được ghi lại và không bật xác thực giả.
 
 ## 8. Chiến lược hoàn thiện nhanh trước hạn nộp
 
@@ -223,9 +225,9 @@ Các lựa chọn sau đã được đối chiếu tài liệu vào ngày 21/10/
 - Mobile: **Flutter, ưu tiên Android và một thiết bị mục tiêu** để sớm có APK chạy được.
 - Máy hiện có lệnh Flutter/Dart, .NET, Python và Node; việc thấy executable chưa chứng minh SDK hoặc mọi dependency hoạt động.
 - WebAPI: ASP.NET Core; database bắt buộc PostgreSQL qua EF Core/Npgsql. Conveyor cung cấp URL truy cập API cho điện thoại. Không tự đổi sang SQLite, SQL Server, Firebase hoặc Supabase.
-- Ưu tiên một API và một cơ sở dữ liệu có dữ liệu mẫu; cơ chế phân quyền và kiểm tra điểm danh đặt ở API.
+- Ưu tiên một API và một cơ sở dữ liệu; không tự nạp tài khoản/lớp demo. Cơ chế phân quyền và kiểm tra điểm danh đặt ở API.
 - Email OTP: xác nhận sớm dịch vụ gửi email/SMTP và cấu hình bằng biến môi trường. Luồng gửi thật phải được thử trước khi đánh dấu hoàn thành.
-- OTP in console hoặc hiển thị trên màn hình chỉ có thể là chế độ phát triển được ghi rõ, không tính là đã hoàn thành gửi OTP qua email.
+- Không có OTP dev hoặc cơ chế bỏ qua xác thực: không trả mã về API, không ghi mã trong log, không tự điền hoặc hiện mã trên app, kể cả Development.
 - Thử kết nối điện thoại tới API sớm; kiểm tra địa chỉ LAN/cấu hình mạng, camera, vị trí và vòng đời ứng dụng.
 - Không coi việc chạy trên trình duyệt hoặc build APK thành công là đã kiểm thử QR/GPS/khuôn mặt trên điện thoại.
 
@@ -234,7 +236,7 @@ Các lựa chọn sau đã được đối chiếu tài liệu vào ngày 21/10/
 - [ ] Source Flutter, WebAPI và tài liệu trong repository `phamlehuyhoang`.
 - [ ] APK Android đã cài và chạy thử trên thiết bị mục tiêu.
 - [ ] Script tạo/migrate dữ liệu và dữ liệu mẫu cho cơ sở dữ liệu `phamlehuyhoang`.
-- [ ] Tài khoản thử cho quản trị viên, giảng viên, sinh viên; không chứa thông tin cá nhân thật.
+- [ ] Hướng dẫn tạo tài khoản và cấp vai trò thực tế; dữ liệu giả chỉ dùng trong bộ test.
 - [ ] README hướng dẫn chạy API, cấu hình URL từ điện thoại, email, mô hình khuôn mặt và build/cài APK.
 - [ ] File cấu hình mẫu không chứa bí mật và `THIRD_PARTY_NOTICES.md`.
 - [ ] Kịch bản trình diễn đủ yêu cầu, ảnh/video nếu môn học yêu cầu và danh sách giới hạn thực tế.
@@ -274,4 +276,17 @@ Kế hoạch không phân bổ khung giờ cho từng mục tiêu. Checklist ch�
 - Không xóa dữ liệu có sẵn, không force-push và không đưa bí mật hay dữ liệu sinh trắc học thật vào Git.
 - Nếu thiếu thông tin đăng nhập SMTP/PostgreSQL, quyền cài đặt hoặc quyền thao tác Conveyor, dùng cấu hình sẵn có hợp lệ trong dự án/môi trường; không bịa thông tin hoặc vượt quyền.
 - Nếu vẫn bị chặn, hoàn thành các phần còn lại, ghi rõ hạng mục chưa kiểm thử và lệnh/bước cấu hình còn thiếu khi bàn giao; không đánh dấu hoàn thành giả.
+
+## 10. Xác thực email thật và loại bỏ cơ chế vào nhanh
+
+Chỉ đạo mới của người dùng: đăng ký nhận OTP kích hoạt; khi đăng nhập vẫn phải nhận và nhập OTP mới. Không cung cấp tài khoản thử nghiệm nhanh, OTP dev, tự điền mã hoặc fallback giả gửi thư.
+
+- Đăng ký tạo tài khoản chưa xác minh; OTP kích hoạt chỉ xác minh email và không cấp phiên.
+- Đăng nhập mật khẩu/khuôn mặt với tài khoản đã kích hoạt tạo challenge OTP đăng nhập riêng.
+- Tài khoản cũ chưa xác minh phải kích hoạt email trước; không mặc định đã xác minh do có dữ liệu cũ.
+- Thiếu/lỗi SMTP phải trả lỗi gửi thư (HTTP 503), không nói đã gửi hoặc cấp challenge dùng được.
+- Không tự seed tài khoản/lớp mẫu; không xóa người dùng/lịch sử hiện có. Bootstrap admin từ cấu hình riêng vẫn cần xác minh email.
+- OTP được lưu dạng băm, giới hạn thử/gửi lại và không dùng chéo mục đích.
+- Hướng dẫn cấu hình Gmail tại [EMAIL_SETUP.md](../../EMAIL_SETUP.md); script `scripts/Configure-Email.ps1` lưu cấu hình riêng đã được gitignore.
+- Đã triển khai code và kiểm tra bằng test, nhưng môi trường chưa có SMTP gửi thật; chưa được đánh dấu hoàn thành kiểm chứng thư đến Gmail.
 

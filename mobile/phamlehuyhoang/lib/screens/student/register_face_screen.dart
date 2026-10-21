@@ -121,18 +121,21 @@ class _RegisterFaceScreenState extends State<RegisterFaceScreen> {
               const SizedBox(height: 20),
 
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.camera_alt),
-                    label: const Text('Chụp Camera'),
-                    onPressed: () => _takePhoto(ImageSource.camera),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.camera_alt),
+                      label: const Text('Chụp Camera'),
+                      onPressed: () => _takePhoto(ImageSource.camera),
+                    ),
                   ),
                   const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.photo_library),
-                    label: const Text('Thư viện (AVD)'),
-                    onPressed: () => _takePhoto(ImageSource.gallery),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.photo_library),
+                      label: const Text('Thư viện ảnh'),
+                      onPressed: () => _takePhoto(ImageSource.gallery),
+                    ),
                   ),
                 ],
               ),
