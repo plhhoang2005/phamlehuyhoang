@@ -1,4 +1,10 @@
-﻿CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+-- ============================================================================
+-- Đồ án: Ứng dụng Di động Điểm danh Sinh viên
+-- Sinh viên thực hiện: Phạm Lê Huy Hoàng
+-- Cơ sở dữ liệu: phamlehuyhoang (PostgreSQL)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
     "MigrationId" character varying(150) NOT NULL,
     "ProductVersion" character varying(32) NOT NULL,
     CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY ("MigrationId")
