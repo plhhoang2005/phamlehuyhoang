@@ -7,17 +7,33 @@ $taskExecutable = Join-Path $taskToolDirectory 'cloudflared.exe'
 $taskStatePath = Join-Path $taskLocal 'quick-tunnel.json'
 $taskOrigin = 'http://127.0.0.1:5000'
 
-$taskHealth = Invoke-RestMethod -Uri "$taskOrigin/health" -TimeoutSec 10
-if ($taskHealth.service -ne 'phamlehuyhoang.WebAPI' -or $taskHealth.status -ne 'Healthy') {
-    throw 'WebAPI chua san sang. Chay scripts/Start-Backend.ps1 truoc.'
+try {
+    $taskHealth = Invoke-RestMethod -Uri "$taskOrigin/health" -TimeoutSec 5 -ErrorAction Stop
+    if ($taskHealth.service -ne 'phamlehuyhoang.WebAPI' -or $taskHealth.status -ne 'Healthy') {
+        throw 'WebAPI chua san sang.'
+    }
+} catch {
+    Write-Host "`n[!] WebAPI (Backend) chua khoi dong! Hay mo mot terminal va chay truoc:" -ForegroundColor Yellow
+    Write-Host "    powershell -ExecutionPolicy Bypass -File scripts\Start-Backend.ps1`n" -ForegroundColor Cyan
+    throw "WebAPI chua san sang tai $taskOrigin."
 }
 if (Test-Path -LiteralPath $taskStatePath) {
     $taskPrevious = Get-Content -Raw -LiteralPath $taskStatePath | ConvertFrom-Json
     $taskExisting = Get-Process -Id $taskPrevious.ProcessId -ErrorAction SilentlyContinue
     if ($taskExisting -and $taskExisting.Path -eq $taskExecutable -and
         $taskExisting.StartTime.ToUniversalTime().ToString('O') -eq $taskPrevious.StartedAtUtc) {
-        Write-Output "Tunnel dang chay: $($taskPrevious.Url)"
-        return
+        $externalHealthy = $false
+        try {
+            $checkResp = Invoke-RestMethod -Uri "$($taskPrevious.Url)/health" -TimeoutSec 4 -ErrorAction Stop
+            if ($checkResp.status -eq 'Healthy') { $externalHealthy = $true }
+        } catch { }
+        if ($externalHealthy) {
+            Write-Output "Tunnel dang chay: $($taskPrevious.Url)"
+            Write-Output "Health: $($taskPrevious.Url)/health"
+            return
+        }
+        Stop-Process -Id $taskExisting.Id -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $taskStatePath -ErrorAction SilentlyContinue
     }
 }
 
@@ -37,7 +53,7 @@ foreach ($taskConfig in @('config.yml', 'config.yaml')) {
 }
 $taskLog = Join-Path $taskLocal ('cloudflare-' + [Guid]::NewGuid().ToString('N') + '.log')
 $taskProcess = Start-Process -FilePath $taskExecutable -WorkingDirectory $taskRoot -WindowStyle Hidden -PassThru -ArgumentList @(
-    'tunnel', '--no-autoupdate', '--url', $taskOrigin, '--logfile', ('"' + $taskLog + '"')
+    'tunnel', '--no-autoupdate', '--protocol', 'http2', '--url', $taskOrigin, '--logfile', ('"' + $taskLog + '"')
 )
 try {
     $taskDeadline = [DateTime]::UtcNow.AddSeconds(45)
